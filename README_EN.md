@@ -2,7 +2,11 @@
 
 [中文](./README.md)
 
-LLM-based code generation and constraint verification agent for graph data. Supports structured querying and automated code generation for network topologies (MALT), configuration rule graphs (CRG), and traffic analysis scenarios.
+> A fork and migration of [Froot-NetSys/MeshAgent](https://github.com/Froot-NetSys/MeshAgent), based on the paper: **"[MeshAgent: Enabling Reliable Network Management with Large Language Models](https://doi.org/10.1145/3771567)"**.
+
+LLM-based code generation and constraint verification agent for graph data. Extracts domain-specific invariants (constraints) to guide LLM code generation and validation, supporting structured querying and automated code generation for network topologies (MALT), configuration rule graphs (CRG), and traffic analysis.
+
+**Paper**: Yajie Zhou, Kevin Hsieh, Sathiya Kumaran Mani, Srikanth Kandula, Zaoxing Liu. *ACM SIGMETRICS 2026*. [[PDF]](https://zaoxing.github.io/papers/2026/SIGMETRICS26_MeshAgent.pdf) [[MSR]](https://www.microsoft.com/en-us/research/publication/meshagent-enabling-reliable-network-management-with-large-language-models/)
 
 ## Service Migration
 
@@ -22,6 +26,7 @@ This project has been migrated from Azure services to domestic models + local ve
 .
 ├── .env                      # API Key config (not committed to git)
 ├── .env.template             # API Key template
+├── LICENSE                   # MIT License
 ├── requirements.txt          # Python dependencies
 ├── MIGRATION_GUIDE.md        # Migration guide
 ├── app-malt/                 # MALT: network topology code generation
@@ -81,3 +86,19 @@ Core dependencies and version constraints:
 - **DeepSeek V4 thinking mode**: Disabled at init via `model_kwargs={"thinking": {"type": "disabled"}}`. Default thinking mode would affect deterministic output.
 - **Exact prompt matching**: Scripts use exact string matching to find ground truth. Minor text differences may cause validation failures.
 - **Relative path dependency**: Scripts use `data/` and `logs/` relative paths and must be run from the corresponding app directory.
+
+## Citation
+
+```bibtex
+@inproceedings{zhou2026meshagent,
+  title     = {MeshAgent: Enabling Reliable Network Management with Large Language Models},
+  author    = {Yajie Zhou and Kevin Hsieh and Sathiya Kumaran Mani and Srikanth Kandula and Zaoxing Liu},
+  booktitle = {ACM SIGMETRICS},
+  year      = {2026},
+  doi       = {10.1145/3771567},
+}
+```
+
+## License
+
+This project is forked from [Froot-NetSys/MeshAgent](https://github.com/Froot-NetSys/MeshAgent) and released under the [MIT License](./LICENSE).

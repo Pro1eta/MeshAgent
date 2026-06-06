@@ -2,7 +2,11 @@
 
 [English](./README_EN.md)
 
-基于 LLM 的图数据代码生成与约束验证代理。支持对网络拓扑（MALT）、配置规则图（CRG）及流量分析场景的结构化提问与自动化代码生成。
+> 基于 "[MeshAgent: Enabling Reliable Network Management with Large Language Models](https://doi.org/10.1145/3771567)" 论文的复现与迁移项目。原项目：[Froot-NetSys/MeshAgent](https://github.com/Froot-NetSys/MeshAgent)
+
+基于 LLM 的图数据代码生成与约束验证代理。通过提取领域不变性约束（invariants）引导 LLM 生成并验证代码，支持对网络拓扑（MALT）、配置规则图（CRG）及流量分析场景的结构化提问与自动化代码生成。
+
+**论文信息**：Yajie Zhou, Kevin Hsieh, Sathiya Kumaran Mani, Srikanth Kandula, Zaoxing Liu. *ACM SIGMETRICS 2026*. [[PDF]](https://zaoxing.github.io/papers/2026/SIGMETRICS26_MeshAgent.pdf) [[MSR]](https://www.microsoft.com/en-us/research/publication/meshagent-enabling-reliable-network-management-with-large-language-models/)
 
 ## 服务迁移
 
@@ -22,6 +26,7 @@
 .
 ├── .env                      # API Key 配置（不提交到 git）
 ├── .env.template             # API Key 模板
+├── LICENSE                   # MIT License
 ├── requirements.txt          # Python 依赖
 ├── MIGRATION_GUIDE.md        # 迁移指南
 ├── app-malt/                 # MALT：网络拓扑代码生成
@@ -81,3 +86,19 @@ cd app-malt && python baseline_static_prompt.py
 - **DeepSeek V4 thinking mode**：已在初始化时通过 `model_kwargs={"thinking": {"type": "disabled"}}` 关闭，否则默认思考模式会影响确定性输出
 - **Prompt 文本精确匹配**：脚本通过精确字符串匹配查找 ground truth，细微差异可能导致验证失败
 - **相对路径依赖**：脚本使用 `data/` 和 `logs/` 相对路径，必须从对应 app 目录运行
+
+## 论文引用
+
+```bibtex
+@inproceedings{zhou2026meshagent,
+  title     = {MeshAgent: Enabling Reliable Network Management with Large Language Models},
+  author    = {Yajie Zhou and Kevin Hsieh and Sathiya Kumaran Mani and Srikanth Kandula and Zaoxing Liu},
+  booktitle = {ACM SIGMETRICS},
+  year      = {2026},
+  doi       = {10.1145/3771567},
+}
+```
+
+## 协议
+
+本项目基于 [Froot-NetSys/MeshAgent](https://github.com/Froot-NetSys/MeshAgent) fork，沿用 [MIT License](./LICENSE) 开源。
