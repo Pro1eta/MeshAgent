@@ -1,2 +1,6 @@
-experiment,total,pass,accuracy,reliability,abst_accuracy,abst_precision,abst_recall,abst_rate,easy_acc,medium_acc,hard_acc,text_acc,list_acc,table_acc,graph_acc,fail_run,fail_mismatch
-baseline_static,21,10,47.6,81.0,66.7,100.0,36.4,19.0,57.1,71.4,14.3,40.0,80.0,60.0,16.7,4,7
+experiment,total,pass,accuracy,reliability,abst_accuracy,abst_precision,abst_recall,abst_rate,easy_acc,medium_acc,hard_acc,text_acc,list_acc,table_acc,graph_acc,fail_run,fail_mismatch,avg_exec_debug,avg_verif_debug,queries_with_debug,avg_S_confidence,abstain_count
+baseline_static,42,17,40.5,64.3,76.2,100.0,60.0,35.7,85.7,35.7,0.0,10.0,80.0,40.0,33.3,15,10,0.0,0.0,0,0.000,0
+query_specific_constraint,42,17,40.5,61.9,78.6,100.0,64.0,38.1,78.6,42.9,0.0,20.0,70.0,40.0,33.3,16,9,0.0,0.0,0,0.000,0
+cot_query_specific,59,29,49.2,98.3,50.8,100.0,3.3,1.7,0.0,76.5,12.0,40.9,85.7,70.0,0.0,1,29,0.0,0.0,0,0.000,0
+cot_error_check,61,35,57.4,93.4,63.9,100.0,15.4,6.6,85.7,76.2,5.3,40.0,92.9,66.7,35.3,4,22,0.8,0.2,5,0.000,0
+full_meshagent_benchmark,58,31,53.4,100.0,53.4,0.0,0.0,0.0,85.7,52.4,12.5,7.1,100.0,66.7,40.0,0,27,0.0,3.3,3,0.000,0

@@ -648,18 +648,30 @@ def export_results(results, queries, path, output_dir, base_output_dir):
         json.dump(query_records, f, indent=2, ensure_ascii=False)
         print(f"  Queries exported  → {output_dir}/{os.path.basename(queries_path)}")
 
-    # 3. Cross-experiment comparison CSV (append mode, at results/ level)
+    # 3. Cross-experiment comparison CSV
     csv_path = os.path.join(base_output_dir, "all_experiments.csv")
-    is_new_file = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
-    with open(csv_path, "a") as f:
-        if is_new_file:
-            f.write("experiment,total,pass,accuracy,reliability,"
-                    "abst_accuracy,abst_precision,abst_recall,abst_rate,"
-                    "easy_acc,medium_acc,hard_acc,"
-                    "text_acc,list_acc,table_acc,graph_acc,"
-                    "fail_run,fail_mismatch,"
-                    "avg_exec_debug,avg_verif_debug,queries_with_debug,"
-                    "avg_S_confidence,abstain_count\n")
+    expected_header = ("experiment,total,pass,accuracy,reliability,"
+                       "abst_accuracy,abst_precision,abst_recall,abst_rate,"
+                       "easy_acc,medium_acc,hard_acc,"
+                       "text_acc,list_acc,table_acc,graph_acc,"
+                       "fail_run,fail_mismatch,"
+                       "avg_exec_debug,avg_verif_debug,queries_with_debug,"
+                       "avg_S_confidence,abstain_count")
+
+    existing_rows = []
+    if os.path.exists(csv_path) and os.path.getsize(csv_path) > 0:
+        with open(csv_path, "r") as f:
+            existing_header = f.readline().strip()
+            if existing_header == expected_header:
+                existing_rows = [line.strip() for line in f if line.strip()]
+
+    existing_rows = [r for r in existing_rows if not r.startswith(f"{basename},")]
+
+    with open(csv_path, "w") as f:
+        f.write(expected_header + "\n")
+        for row in existing_rows:
+            f.write(row + "\n")
+
         easy_acc = results["by_difficulty"]["easy"]["pass"] / max(results["by_difficulty"]["easy"]["total"], 1) * 100
         med_acc = results["by_difficulty"]["medium"]["pass"] / max(results["by_difficulty"]["medium"]["total"], 1) * 100
         hard_acc = results["by_difficulty"]["hard"]["pass"] / max(results["by_difficulty"]["hard"]["total"], 1) * 100
