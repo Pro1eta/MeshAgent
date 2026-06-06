@@ -28,6 +28,7 @@
 ├── LICENSE                   # MIT License
 ├── requirements.txt          # Python 依赖
 ├── MIGRATION_GUIDE.md        # 迁移指南
+├── results/                  # 清洗后的实验数据（自动导出）
 ├── app-malt/                 # MALT：网络拓扑代码生成
 ├── app-CRG/                  # CRG：配置规则图代码生成
 └── app-traffic-analysis/     # 流量分析代码生成
@@ -68,11 +69,50 @@ cd app-malt && python scripts/reindex.py
 
 ### 4. 运行实验
 
+实验按渐进式模块叠加设计，每个脚本在上一个基础上增加一个组件：
+
 ```bash
-cd app-malt && python baseline_static_prompt.py
+cd app-malt
+
+# Stage 1: 全量约束静态注入（Baseline）
+python baseline_static_prompt.py
+
+# Stage 2: 查询相关约束检索
+python query_specific_constraint_prompt.py
+
+# Stage 3: + Chain-of-Thought 推理
+python cot_with_query_specific.py
+
+# Stage 4: + Verifier 不变量检测 + 自修复
+python cot_with_error_check.py
+
+# Stage 5: + 工具调用（Full MeshAgent）
+python full_cot_with_tools.py
+
+# （可选）Stage 5 替代版（Google VertexAI 原版适配）
+python copy_full_cot_with_tools.py
 ```
 
-所有脚本必须从对应的 app 目录运行，因为内部使用了 `data/` 和 `logs/` 相对路径。
+> 所有脚本必须从 `app-malt/` 目录运行（内部使用 `data/`、`logs/` 相对路径）。
+
+### 5. 清洗与分析
+
+> ⚠️ Stage 1–4 输出到同一个文件 `logs/debug/baseline_static.jsonl`（追加模式）。建议每跑完一个阶段就分析一次并备份，再跑下一个；或手动修改脚本中的 `OUTPUT_JSONL_PATH` 为不同路径。
+
+```bash
+cd app-malt
+
+# 每个实验跑完后执行：
+python scripts/analyze_results.py logs/debug/baseline_static.jsonl      # Stage 1-4
+python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl    # Stage 5
+python scripts/analyze_results.py logs/codey/full_cot_tool.jsonl        # Stage 5 (alt)
+```
+
+每次运行输出：
+- 终端报告（准确率、Fig 9 拒答指标、失败原因分类）
+- `results/{实验名}_summary.json` — 结构化指标
+- `results/{实验名}_queries.json` — 逐题明细
+- `results/all_experiments.csv` — 跨实验对比表（自动追加）
 
 ## 依赖说明
 

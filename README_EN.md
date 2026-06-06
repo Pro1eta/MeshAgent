@@ -28,6 +28,7 @@ This project has been migrated from Azure services to domestic models + local ve
 ├── LICENSE                   # MIT License
 ├── requirements.txt          # Python dependencies
 ├── MIGRATION_GUIDE.md        # Migration guide
+├── results/                  # Cleaned experiment data (auto-exported)
 ├── app-malt/                 # MALT: network topology code generation
 ├── app-CRG/                  # CRG: config rule graph code generation
 └── app-traffic-analysis/     # traffic analysis code generation
@@ -68,11 +69,50 @@ cd app-malt && python scripts/reindex.py
 
 ### 4. Run Experiments
 
+Experiments follow a progressive module stacking design. Each script adds one component:
+
 ```bash
-cd app-malt && python baseline_static_prompt.py
+cd app-malt
+
+# Stage 1: All constraints as static prompt (Baseline)
+python baseline_static_prompt.py
+
+# Stage 2: Query-specific constraint retrieval
+python query_specific_constraint_prompt.py
+
+# Stage 3: + Chain-of-Thought reasoning
+python cot_with_query_specific.py
+
+# Stage 4: + Verifier invariant detection + self-repair
+python cot_with_error_check.py
+
+# Stage 5: + Tool calling (Full MeshAgent)
+python full_cot_with_tools.py
+
+# (Optional) Stage 5 alternative (Google VertexAI port)
+python copy_full_cot_with_tools.py
 ```
 
-All scripts must be run from their respective app directory, as they use relative paths (`data/`, `logs/`).
+> All scripts must be run from the `app-malt/` directory (they use relative paths `data/`, `logs/`).
+
+### 5. Clean & Analyze
+
+> ⚠️ Stages 1–4 write to the same file `logs/debug/baseline_static.jsonl` (append mode). Analyze and back up results after each stage before running the next; or change `OUTPUT_JSONL_PATH` in each script to separate paths.
+
+```bash
+cd app-malt
+
+# Run after each experiment:
+python scripts/analyze_results.py logs/debug/baseline_static.jsonl      # Stages 1-4
+python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl    # Stage 5
+python scripts/analyze_results.py logs/codey/full_cot_tool.jsonl        # Stage 5 (alt)
+```
+
+Each run outputs:
+- Terminal report (accuracy, Fig 9 abstention metrics, failure classification)
+- `results/{experiment}_summary.json` — structured metrics
+- `results/{experiment}_queries.json` — per-query breakdown
+- `results/all_experiments.csv` — cross-experiment comparison (auto-append)
 
 ## Dependency Notes
 
