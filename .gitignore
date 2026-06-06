@@ -92,6 +92,9 @@ app-CRG/logs/debug/*
 .omo/
 MIGRATION_GUIDE.md
 
+# direnv
+.envrc
+
 # Personal notes and reference papers
 notes/
 docs/
