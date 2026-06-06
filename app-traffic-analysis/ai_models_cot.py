@@ -75,7 +75,6 @@ llm = ChatOpenAI(
     openai_api_key=DEEPSEEK_API_KEY,
     temperature=0.0,
     max_tokens=4000,
-    request_timeout=120,
     model_kwargs={"thinking": {"type": "disabled"}},
 )
 # =====================================================================
