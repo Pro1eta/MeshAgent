@@ -86,14 +86,14 @@ python cot_with_query_specific.py
 # Stage 4: + Verifier 不变量检测 + 自修复
 python cot_with_error_check.py
 
-# Stage 5: + 工具调用（Full MeshAgent）
+# Stage 5: + 工具调用（Full MeshAgent，开放式题目）
 python full_cot_with_tools.py
 
-# （可选）Stage 5 替代版（Google VertexAI 原版适配）
-python copy_full_cot_with_tools.py
+# Stage 6: + 工具调用（Full MeshAgent，Benchmark 题目）
+python full_meshagent_benchmark.py
 
-# Stage 6: + 置信度评分 + 主动拒答（Full MeshAgent + Abstention）
-# 需要 ≥ 3 次重复运行来评估语义一致性 (EACH_PROMPT_RUN_TIME=3)
+# Stage 7: + 置信度评分 + 主动拒答（Full MeshAgent + Abstention）
+# 每题跑 3 次以评估语义一致性 (EACH_PROMPT_RUN_TIME=3)
 python full_meshagent_abstention.py
 ```
 
@@ -110,7 +110,7 @@ python scripts/analyze_results.py logs/debug/query_specific_constraint.jsonl
 python scripts/analyze_results.py logs/debug/cot_query_specific.jsonl
 python scripts/analyze_results.py logs/debug/cot_error_check.jsonl
 python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl
-python scripts/analyze_results.py logs/codey/full_cot_tool.jsonl
+python scripts/analyze_results.py logs/debug/full_meshagent_benchmark.jsonl
 python scripts/analyze_results.py logs/debug/full_meshagent_abstention.jsonl
 ```
 
