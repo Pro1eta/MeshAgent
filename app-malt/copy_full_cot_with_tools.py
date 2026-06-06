@@ -409,7 +409,7 @@ def userQuery(prompt_list):
 
             goldenAnswerCode = allAnswer[requestData['query']]
 
-            # ground truth answer should already be checked to ensure it can run successfully
+            _, G = getGraphData()
             exec(goldenAnswerCode)
             ground_truth_ret = eval("ground_truth_process_graph(G)")
             # if the type of ground_truth_ret is string, turn it into a json object

@@ -317,8 +317,9 @@ def userQuery(prompt_list):
 
             if isinstance(ret, str):
                 ret = json.loads(ret)
-
             goldenAnswerCode = allAnswer[each_prompt]
+
+            _, G = getGraphData()
             exec(goldenAnswerCode)
             ground_truth_ret = eval("ground_truth_process_graph(G)")
             if isinstance(ground_truth_ret, str):
