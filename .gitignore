@@ -49,6 +49,7 @@ ENV/
 env.bak/
 venv.bak/
 cleanvenv/
+.python-version
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -65,3 +66,7 @@ logs/*
 app-malt/logs/*
 app-traffic-analysis/logs/*
 app-CRG/logs/*
+
+# Personal notes and reference papers
+notes/
+docs/

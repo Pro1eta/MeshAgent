@@ -5,8 +5,12 @@ import json
 import pandas as pd
 import inspect
 import re
-from langchain.llms import VertexAI
-import google.generativeai as genai
+# =====================================================================
+# ORIGINAL: Google VertexAI imports (commented out - not used with DeepSeek)
+# =====================================================================
+# from langchain.llms import VertexAI
+# import google.generativeai as genai
+# =====================================================================
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain.chains import LLMChain, LLMMathChain, TransformChain, SequentialChain
 from langchain.callbacks import get_openai_callback
@@ -15,38 +19,65 @@ from langchain.agents import ZeroShotAgent, Tool, AgentExecutor, load_tools
 from langchain.chat_models import AzureChatOpenAI
 # For other models: text-davinci-003
 from langchain.llms import AzureOpenAI
-from azure.identity import DefaultAzureCredential
-# Get the Azure Credential
-credential = DefaultAzureCredential()
 
-# Set the API type to `azure_ad`
-os.environ["OPENAI_API_TYPE"] = "azure"
-# Set the API_KEY to the token from the Azure credential
-os.environ["OPENAI_API_KEY"] = credential.get_token("https://cognitiveservices.azure.com/.default").token
-# Set the ENDPOINT
-# os.environ["AZURE_OPENAI_ENDPOINT"] = "https://ztn-oai-fc.openai.azure.com/"
+# =====================================================================
+# ORIGINAL: Azure Identity / credential (commented out for migration)
+# =====================================================================
+# from azure.identity import DefaultAzureCredential
+# # Get the Azure Credential
+# credential = DefaultAzureCredential()
+#
+# # Set the API type to `azure_ad`
+# os.environ["OPENAI_API_TYPE"] = "azure"
+# # Set the API_KEY to the token from the Azure credential
+# os.environ["OPENAI_API_KEY"] = credential.get_token("https://cognitiveservices.azure.com/.default").token
+# # Set the ENDPOINT
+# # os.environ["AZURE_OPENAI_ENDPOINT"] = "https://ztn-oai-fc.openai.azure.com/"
+# =====================================================================
 
 # Load environ variables from .env, will not override existing environ variables
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-OPENAI_API_TYPE = os.getenv('OPENAI_API_TYPE')
-OPENAI_API_BASE = os.getenv('OPENAI_API_BASE')
-
-# For GPT in Azure
-llm = AzureChatOpenAI(
-    openai_api_type=OPENAI_API_TYPE,
-    openai_api_base=OPENAI_API_BASE,
-    openai_api_version="2023-12-01-preview",
-    deployment_name='gpt-4-32k',
-    model_name='gpt-4-32k',
-    temperature=0,
-    max_tokens=4000,
-    )
+# =====================================================================
+# ORIGINAL: Azure OpenAI GPT-4-32k (commented out for migration)
+# =====================================================================
+# OPENAI_API_TYPE = os.getenv('OPENAI_API_TYPE')
+# OPENAI_API_BASE = os.getenv('OPENAI_API_BASE')
 #
-# genai.configure(api_key=os.environ['GOOGLE_API_KEY'])
-# llm = VertexAI(model_name="gemini-pro",
-#                max_output_tokens=2000,
-#                temperature=0.8)
+# # For GPT in Azure
+# llm = AzureChatOpenAI(
+#     openai_api_type=OPENAI_API_TYPE,
+#     openai_api_base=OPENAI_API_BASE,
+#     openai_api_version="2023-12-01-preview",
+#     deployment_name='gpt-4-32k',
+#     model_name='gpt-4-32k',
+#     temperature=0,
+#     max_tokens=4000,
+#     )
+# #
+# # genai.configure(api_key=os.environ['GOOGLE_API_KEY'])
+# # llm = VertexAI(model_name="gemini-pro",
+# #                max_output_tokens=2000,
+# #                temperature=0.8)
+# =====================================================================
+
+# =====================================================================
+# NEW: DeepSeek-v4-pro via OpenAI-compatible API
+# Set DEEPSEEK_API_KEY in .env
+# =====================================================================
+from langchain.chat_models import ChatOpenAI
+
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+
+llm = ChatOpenAI(
+    model='deepseek-v4-pro',
+    openai_api_base='https://api.deepseek.com/v1',
+    openai_api_key=DEEPSEEK_API_KEY,
+    temperature=0.0,
+    max_tokens=4000,
+    model_kwargs={"thinking": {"type": "disabled"}},
+)
+# =====================================================================
 
 # For baseline and query-specific constraint only:
 constraint_prefix = """

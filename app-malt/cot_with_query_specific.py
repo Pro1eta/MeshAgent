@@ -8,7 +8,8 @@ from prototxt_parser.prototxt import parse
 from collections import Counter
 import os
 from ai_models_cot import summary_gen_chain, cot_only_chain, pySelfDebugger
-from helper import getGraphData, extract_constraints, clean_up_llm_output_func, check_list_equal, node_attributes_are_equal, clean_up_output_graph_data
+from helper import getGraphData, generate_embeddings, clean_up_llm_output_func, check_list_equal, node_attributes_are_equal, clean_up_output_graph_data
+from rag_local import init_rag, rag_constraint_search
 import networkx as nx
 import jsonlines
 import random
@@ -19,51 +20,42 @@ import re
 import time
 import sys
 import numpy as np
-from tenacity import retry, wait_random_exponential, stop_after_attempt
-from azure.core.credentials import AzureKeyCredential
-from azure.search.documents import SearchClient
-from azure.search.documents.models import Vector
-
-# Load environ variables from .env, will not override existing environ variables
-load_dotenv()
-service_endpoint = os.getenv("AZURE_SEARCH_SERVICE_ENDPOINT")
-constraint_index_name = os.getenv("RAG_MALT_CONSTRAINT")
-tool_index_name = os.getenv("RAG_MALT_TOOL")
-azure_search_key = os.getenv("AZURE_SEARCH_ADMIN_KEY")
-openai.api_type = os.getenv("OPENAI_API_TYPE")
-openai.api_key = os.getenv("OPENAI_API_KEY")
-openai.api_base = os.getenv("OPENAI_API_BASE")
-openai.api_version = os.getenv("OPENAI_API_VERSION")
-credential = AzureKeyCredential(azure_search_key)
+# =====================================================================
+# ORIGINAL: Azure + OpenAI embedding config (commented out for migration)
+# =====================================================================
+# from tenacity import retry, wait_random_exponential, stop_after_attempt
+# from azure.core.credentials import AzureKeyCredential
+# from azure.search.documents import SearchClient
+# from azure.search.documents.models import Vector
+#
+# service_endpoint = os.getenv("AZURE_SEARCH_SERVICE_ENDPOINT")
+# constraint_index_name = os.getenv("RAG_MALT_CONSTRAINT")
+# tool_index_name = os.getenv("RAG_MALT_TOOL")
+# azure_search_key = os.getenv("AZURE_SEARCH_ADMIN_KEY")
+# openai.api_type = os.getenv("OPENAI_API_TYPE")
+# openai.api_key = os.getenv("OPENAI_API_KEY")
+# openai.api_base = os.getenv("OPENAI_API_BASE")
+# openai.api_version = os.getenv("OPENAI_API_VERSION")
+# credential = AzureKeyCredential(azure_search_key)
+#
+# @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
+# def generate_embeddings(text):
+#     response = openai.Embedding.create(input=text, engine="text-embedding-ada-002")
+#     return response['data'][0]['embedding']
+#
+# def rag_vector_search(query, num_extraction=10):
+#     search_client = SearchClient(service_endpoint, constraint_index_name, AzureKeyCredential(azure_search_key))
+#     results = search_client.search(
+#         search_text="",
+#         vector=Vector(value=generate_embeddings(query), k=num_extraction, fields="constraintVector"),
+#         select=["label", "constraint"]
+#     )
+#     return extract_constraints(results)
+# =====================================================================
 
 EACH_PROMPT_RUN_TIME = 1
 OUTPUT_JSONL_PATH = 'logs/debug/baseline_static.jsonl'
 DEBUG_LOOP_TOTAL = 3
-
-@retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
-# Function to generate embeddings for title and content fields, also used for query embeddings
-def generate_embeddings(text):
-    response = openai.Embedding.create(
-        input=text, engine="text-embedding-ada-002")
-    embeddings = response['data'][0]['embedding']
-    return embeddings
-
-
-def rag_vector_search(query, num_extraction=10):
-    '''
-    With given query, use pure vector search to find the most related items from RAG.
-    It assume index is already created and uploaded.
-    '''
-    # Pure Vector Search
-    search_client = SearchClient(service_endpoint, constraint_index_name, AzureKeyCredential(azure_search_key))
-
-    results = search_client.search(
-        search_text="",
-        vector=Vector(value=generate_embeddings(query), k=num_extraction, fields="constraintVector"),
-        select=["label", "constraint"]
-    )
-
-    return extract_constraints(results)
 
 
 def self_debug_process_loop(requestData, constraints_found, code, error_details, debug_status_msg, loop_time_index):
@@ -116,6 +108,8 @@ def extract_final_code(first_step_code, second_step_code, third_step_code):
 
 
 def userQuery(prompt_list):
+    init_rag()
+
     # Load the existing prompt and golden answers from Json
     golden_answer_filename = 'golden_answer_generator/prompt_golden_ans.json'
     with open(golden_answer_filename, "r") as fa:
@@ -127,7 +121,7 @@ def userQuery(prompt_list):
         print("Query: ", each_prompt)
         requestData = {'query': each_prompt}
 
-        constraints_found = rag_vector_search(each_prompt)
+        constraints_found = rag_constraint_search(generate_embeddings(each_prompt), top_k=10)
         print("Constraints: ", constraints_found)
         prompt_accu = 0
 

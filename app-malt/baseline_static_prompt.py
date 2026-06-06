@@ -7,7 +7,8 @@ from prototxt_parser.prototxt import parse
 from collections import Counter
 import os
 from ai_models_cot import constraint_only_chain
-from helper import getGraphData, extract_constraints, clean_up_llm_output_func, check_list_equal, node_attributes_are_equal
+from helper import getGraphData, generate_embeddings, clean_up_llm_output_func, check_list_equal, node_attributes_are_equal
+from rag_local import init_rag, rag_constraint_search
 import networkx as nx
 import jsonlines
 import random
@@ -18,52 +19,48 @@ import re
 import time
 import sys
 import numpy as np
-from tenacity import retry, wait_random_exponential, stop_after_attempt
-from azure.core.credentials import AzureKeyCredential
-from azure.search.documents import SearchClient
-from azure.search.documents.indexes import SearchIndexClient
-from azure.search.documents.models import Vector
-
-# Load environ variables from .env, will not override existing environ variables
-load_dotenv()
-service_endpoint = os.getenv("AZURE_SEARCH_SERVICE_ENDPOINT")
-constraint_index_name = os.getenv("RAG_MALT_CONSTRAINT")
-tool_index_name = os.getenv("RAG_MALT_TOOL")
-azure_search_key = os.getenv("AZURE_SEARCH_ADMIN_KEY")
-openai.api_type = os.getenv("OPENAI_API_TYPE")
-openai.api_key = os.getenv("OPENAI_API_KEY")
-openai.api_base = os.getenv("OPENAI_API_BASE")
-openai.api_version = os.getenv("OPENAI_API_VERSION")
-credential = AzureKeyCredential(azure_search_key)
+# =====================================================================
+# ORIGINAL: Azure Cognitive Search config + compute (commented out)
+# =====================================================================
+# from tenacity import retry, wait_random_exponential, stop_after_attempt
+# from azure.core.credentials import AzureKeyCredential
+# from azure.search.documents import SearchClient
+# from azure.search.documents.indexes import SearchIndexClient
+# from azure.search.documents.models import Vector
+#
+# service_endpoint = os.getenv("AZURE_SEARCH_SERVICE_ENDPOINT")
+# constraint_index_name = os.getenv("RAG_MALT_CONSTRAINT")
+# tool_index_name = os.getenv("RAG_MALT_TOOL")
+# azure_search_key = os.getenv("AZURE_SEARCH_ADMIN_KEY")
+# openai.api_type = os.getenv("OPENAI_API_TYPE")
+# openai.api_key = os.getenv("OPENAI_API_KEY")
+# openai.api_base = os.getenv("OPENAI_API_BASE")
+# openai.api_version = os.getenv("OPENAI_API_VERSION")
+# credential = AzureKeyCredential(azure_search_key)
+#
+# @retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
+# def generate_embeddings(text):
+#     response = openai.Embedding.create(
+#         input=text, engine="text-embedding-ada-002")
+#     embeddings = response['data'][0]['embedding']
+#     return embeddings
+#
+# def rag_vector_search(query, num_extraction=15):
+#     search_client = SearchClient(service_endpoint, constraint_index_name, AzureKeyCredential(azure_search_key))
+#     results = search_client.search(
+#         search_text='',
+#         vector=Vector(value=generate_embeddings(query), k=num_extraction, fields="constraintVector"),
+#         select=["label", "constraint"]
+#     )
+#     return extract_constraints(results)
+# =====================================================================
 
 EACH_PROMPT_RUN_TIME = 1
 OUTPUT_JSONL_PATH = 'logs/debug/baseline_static.jsonl'
 
-@retry(wait=wait_random_exponential(min=1, max=20), stop=stop_after_attempt(6))
-# Function to generate embeddings for title and content fields, also used for query embeddings
-def generate_embeddings(text):
-    response = openai.Embedding.create(
-        input=text, engine="text-embedding-ada-002")
-    embeddings = response['data'][0]['embedding']
-    return embeddings
-
-def rag_vector_search(query, num_extraction=15):
-    '''
-    With given query, use pure vector search to find the most related items from RAG.
-    It assumes index is already created and uploaded.
-    '''
-    # Pure Vector Search
-    search_client = SearchClient(service_endpoint, constraint_index_name, AzureKeyCredential(azure_search_key))
-
-    results = search_client.search(
-        search_text='',
-        vector=Vector(value=generate_embeddings(query), k=num_extraction, fields="constraintVector"),
-        select=["label", "constraint"]
-    )
-
-    return extract_constraints(results)
-
 def userQuery(prompt_list):
+    init_rag()
+
     # Load the existing prompt and golden answers from Json
     golden_answer_filename = 'golden_answer_generator/prompt_golden_ans.json'
     with open(golden_answer_filename, "r") as fa:
@@ -75,7 +72,7 @@ def userQuery(prompt_list):
         print("Query: ", each_prompt)
         requestData = {'query': each_prompt}
 
-        constraints_found = rag_vector_search(each_prompt)
+        constraints_found = rag_constraint_search(generate_embeddings(each_prompt))
         print("Constraints: ", constraints_found)
         prompt_accu = 0
 
@@ -243,7 +240,7 @@ def main():
     prompt_list = [
         # 3 easy ones
         "List all ports contained in packet switch ju1.a1.m1.s2c1. Return a list.",
-        "Add a new packet_switch 'ju1.a1.m1.s4c7' on jupiter 1, aggregation block 1, domain 1, with 5 ports. Return the new graph.",
+        "Add a new packet_switch 'ju1.a1.m1.s4c7' on jupiter 1, aggregation block 1, domain 1, with 5 ports, each port has physical_capacity_bps as 1000. Add node type and edges too. Return the new graph.",
         "Update the physical_capacity_bps from 1000 Mbps to 4000 Mbps on node ju1.a1.m1.s2c2.p14. Convert Mbps to bps before the update. Return the new graph.",
         # 2nd turn
         "Identify all CONTROL_POINT nodes that are also PACKET_SWITCH type within the AGG_BLOCK type node ju1.a4.m4. Return a list.",
@@ -252,7 +249,7 @@ def main():
         "Find the number of CHASSIS nodes contained in each RACK node? Return a table with headers 'RACK', 'CHASSIS Count'.",
 
         # 3 medium one
-        "What is the bandwidth on ju1.a2.m1.s2c2? Output bandwidth unit should be in Mbps. Return only the number.",
+        "What is the bandwidth on packet switch ju1.a2.m1.s2c2? Output bandwidth unit should be in Mbps. Return only the number.",
         "What is the bandwidth on each AGG_BLOCK? Output bandwidth unit should be in Mbps. Return a table with header 'AGG_BLOCK', 'Bandwidth' on the first row.",
         "Find the first and the second largest Chassis by capacity on 'ju1.a1.m1'. Output bandwidth unit should be in Mbps. Return a table with header 'Chassis', 'Bandwidth' on the first row.",
         # 2nd turn
@@ -264,7 +261,7 @@ def main():
         # 3 hard ones
         "Provide a graph that contains all SUPERBLOCK and AGG_BLOCK. Create the new graph.",
         "Remove packet switch 'ju1.a1.m1.s2c4' out from Chassis c4, how to balance the capacity between Chassis? Return the balanced graph.",
-        "Remove five PORT nodes from each PACKET_SWITCH node ju1.a1.m1.s2c1, ju1.a1.m1.s2c2, ju1.a1.m1.s2c3, ju1.a1.m1.s2c4, ju1.a1.m1.s2c5. Make sure after the removal the capacity between switches is still balanced. Return the list of ports that will be moved.",
+        "Remove five PORT nodes (start from p1) from each PACKET_SWITCH node ju1.a1.m1.s2c1, ju1.a1.m1.s2c2, ju1.a1.m1.s2c3, ju1.a1.m1.s2c4, ju1.a1.m1.s2c5. Make sure after the removal the capacity between switches is still balanced. Return the list of ports that will be moved.",
         # 2nd turn
         "Identify all paths from the CONTROL_DOMAIN type node ju1.a1.dom to PORT node ju1.a1.m1.s2c1.p1, and rank them based on the lowest number of hops.",
         "Analyze the redundancy level of each SUPERBLOCK node, by calculating the number of alternative paths between pairs of CHASSIS nodes contains in SUPERBLOCK.",

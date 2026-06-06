@@ -5,8 +5,12 @@ import json
 import pandas as pd
 import inspect
 import re
-from langchain.llms import VertexAI
-import google.generativeai as genai
+# =====================================================================
+# ORIGINAL: Google VertexAI imports (commented out - not used with DeepSeek)
+# =====================================================================
+# from langchain.llms import VertexAI
+# import google.generativeai as genai
+# =====================================================================
 from langchain.prompts import PromptTemplate, FewShotPromptTemplate
 from langchain.chains import LLMChain, LLMMathChain, TransformChain, SequentialChain
 from langchain.callbacks import get_openai_callback
@@ -17,39 +21,43 @@ from langchain.chat_models import AzureChatOpenAI
 from langchain.llms import AzureOpenAI
 
 # Load environ variables from .env, will not override existing environ variables
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-OPENAI_API_BASE = os.getenv('OPENAI_API_BASE')
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-# For GPT-4 in Azure
-llm = AzureChatOpenAI(
-    openai_api_type='azure',
-    openai_api_base=OPENAI_API_BASE,
-    openai_api_version="2023-05-15",
-    deployment_name='gpt-4-32k',
-    model_name='gpt-4-32k',
-    openai_api_key=OPENAI_API_KEY,
-    temperature=0.0,
-    max_tokens=4000,
-    )
-
-# # For GPT-3.5 in Azure
+# =====================================================================
+# ORIGINAL: Azure OpenAI GPT-4-32k (commented out for migration)
+# =====================================================================
+# OPENAI_API_BASE = os.getenv('OPENAI_API_BASE')
+# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+#
 # llm = AzureChatOpenAI(
 #     openai_api_type='azure',
 #     openai_api_base=OPENAI_API_BASE,
 #     openai_api_version="2023-05-15",
-#     deployment_name='gpt-35-turbo-16k',
-#     model_name='gpt-35-turbo-16k',
+#     deployment_name='gpt-4-32k',
+#     model_name='gpt-4-32k',
 #     openai_api_key=OPENAI_API_KEY,
-#     temperature=0.3,
+#     temperature=0.0,
 #     max_tokens=4000,
-#     )
+# )
+# =====================================================================
 
-# genai.configure(api_key=os.environ['GOOGLE_API_KEY'])
-# llm = VertexAI(model_name="gemini-pro",
-#                max_output_tokens=1000,
-#                temperature=0.5)
+# =====================================================================
+# NEW: DeepSeek-v4-pro via OpenAI-compatible API
+# Set DEEPSEEK_API_KEY in .env
+# =====================================================================
+from langchain.chat_models import ChatOpenAI
+
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+
+llm = ChatOpenAI(
+    model='deepseek-v4-pro',
+    openai_api_base='https://api.deepseek.com/v1',
+    openai_api_key=DEEPSEEK_API_KEY,
+    temperature=0.0,
+    max_tokens=4000,
+    model_kwargs={"thinking": {"type": "disabled"}},
+)
+# =====================================================================
 
 # For baseline and query-specific constraint only:
 constraint_prefix = """

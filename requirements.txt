@@ -1,0 +1,42 @@
+# =====================================================================
+# MeshAgent - Python dependencies
+# =====================================================================
+# Install: pip install -r requirements.txt
+#
+# IMPORTANT: langchain and openai MUST stay at these exact versions.
+# Upgrading will break compatibility with langchain.chat_models.ChatOpenAI.
+
+# LLM & LangChain (DO NOT UPGRADE)
+openai==0.28.1
+langchain==0.0.350
+langchain-community==0.0.2
+
+# HTTP & Config
+requests
+python-dotenv
+
+# Local Vector DB (ChromaDB replaces Azure Cognitive Search)
+chromadb
+
+# Graph Processing
+networkx
+prototxt-parser
+
+# Data Processing
+pandas
+numpy
+jsonlines
+scikit-learn
+
+# Retry Logic
+tenacity
+
+# Azure Cognitive Search (still active in CRG & traffic-analysis full_cot_with_tools.py)
+azure-core
+azure-search-documents
+
+# Mock Data
+Faker
+
+# Visualization
+matplotlib

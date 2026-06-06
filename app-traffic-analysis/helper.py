@@ -18,13 +18,46 @@ import time
 import sys
 import numpy as np
 from tenacity import retry, wait_random_exponential, stop_after_attempt
-from azure.core.credentials import AzureKeyCredential
-from azure.search.documents import SearchClient
-from azure.search.documents.indexes import SearchIndexClient
-# from azure.search.documents.models import Vector
+# =====================================================================
+# ORIGINAL: Azure Cognitive Search imports (commented out for migration)
+# =====================================================================
+# from azure.core.credentials import AzureKeyCredential
+# from azure.search.documents import SearchClient
+# from azure.search.documents.indexes import SearchIndexClient
+# # from azure.search.documents.models import Vector
+# =====================================================================
 
 # Load environ variables from .env, will not override existing environ variables
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
+# =====================================================================
+# NEW: text-embedding-v4 (Qwen3-Embedding-8B, 1536-dim) via DashScope
+# Set DASHSCOPE_API_KEY in .env
+# =====================================================================
+import requests
+
+DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY")
+DASHSCOPE_URL = os.getenv(
+    "DASHSCOPE_EMBEDDING_URL",
+    "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/embeddings"
+)
+
+
+def generate_embeddings(text):
+    headers = {
+        "Authorization": f"Bearer {DASHSCOPE_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "text-embedding-v4",
+        "input": text,
+        "dimensions": 1536,
+        "encoding_format": "float",
+    }
+    resp = requests.post(DASHSCOPE_URL, headers=headers, json=payload, timeout=30)
+    resp.raise_for_status()
+    return resp.json()["data"][0]["embedding"]
+# =====================================================================
 GRAPH_PATH = "data/test_graph.json"
 
 # For traffic analysis graph
@@ -57,20 +90,24 @@ def node_attributes_are_equal(node1_attrs, node2_attrs):
     return True
 
 
-def extract_constraints(results):
-    '''
-    Iterates over results iterator and checks if each item contains 'constraint'.
-    If it does, it appends the constraint to the constraints_list.
-    Finally, it joins all constraints into a single string.
-    '''
-    constraints_list = []
-    for result in results:
-        if 'constraint' in result:
-            constraints_list.append(result['constraint'])
-
-            # join all constraints into a single string
-    constraints_string = ' '.join(constraints_list)
-    return constraints_string
+# =====================================================================
+# ORIGINAL: Azure Cognitive Search constraint extractor (commented out for migration)
+# =====================================================================
+# def extract_constraints(results):
+#     '''
+#     Iterates over results iterator and checks if each item contains 'constraint'.
+#     If it does, it appends the constraint to the constraints_list.
+#     Finally, it joins all constraints into a single string.
+#     '''
+#     constraints_list = []
+#     for result in results:
+#         if 'constraint' in result:
+#             constraints_list.append(result['constraint'])
+# 
+#             # join all constraints into a single string
+#     constraints_string = ' '.join(constraints_list)
+#     return constraints_string
+# =====================================================================
 
 def clean_up_llm_output_func(answer):
     '''
@@ -107,20 +144,24 @@ def clean_up_output_graph_data(ret):
     return ret_graph_copy
 
 
-def extract_tools(results):
-    '''
-    Iterates over results iterator and checks if each item contains 'tool'.
-    If it does, it appends the tool to the tool_list.
-    Finally, it joins all constraints into a single string.
-    '''
-    tool_list = []
-    for result in results:
-        if result['@search.score'] < 0.80:
-            return "no tools available"
-        else:
-            if 'tool' in result:
-                tool_list.append(result['tool'])
-
-    # join all constraints into a single string
-    tool_string = ' '.join(tool_list)
-    return tool_string
+# =====================================================================
+# ORIGINAL: Azure Cognitive Search tool extractor (commented out for migration)
+# =====================================================================
+# def extract_tools(results):
+#     '''
+#     Iterates over results iterator and checks if each item contains 'tool'.
+#     If it does, it appends the tool to the tool_list.
+#     Finally, it joins all constraints into a single string.
+#     '''
+#     tool_list = []
+#     for result in results:
+#         if result['@search.score'] < 0.80:
+#             return "no tools available"
+#         else:
+#             if 'tool' in result:
+#                 tool_list.append(result['tool'])
+# 
+#     # join all constraints into a single string
+#     tool_string = ' '.join(tool_list)
+#     return tool_string
+# =====================================================================
