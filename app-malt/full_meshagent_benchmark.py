@@ -412,6 +412,7 @@ def main():
         "For each AGG_BLOCK, list the number of PACKET_SWITCH and PORT it contains. Return a table with headers 'AGG_BLOCK', 'Switch Count', 'Port Count'.",
         "Identify all PACKET_SWITCH nodes contains in AGG_BLOCK node ju1.a1.m1 and calculate their average physical_capacity_bps (on PORT) in bps. Return a table with headers 'Packet Switch', Average Capacity (bps)', sort by highest average capacity.",
         "Find all PACKET_SWITCH nodes that have capacity more than the average. Return a list of nodes.",
+        "Provide a graph that contains all SUPERBLOCK and AGG_BLOCK. Create the new graph.",
         "Remove packet switch 'ju1.a1.m1.s2c4' out from Chassis c4, how to balance the capacity between Chassis? Return the balanced graph.",
         "Remove five PORT nodes (start from p1) from each PACKET_SWITCH node ju1.a1.m1.s2c1, ju1.a1.m1.s2c2, ju1.a1.m1.s2c3, ju1.a1.m1.s2c4, ju1.a1.m1.s2c5. Make sure after the removal the capacity between switches is still balanced. Return the list of ports that will be moved.",
         "Identify all paths from the CONTROL_DOMAIN type node ju1.a1.dom to PORT node ju1.a1.m1.s2c1.p1, and rank them based on the lowest number of hops.",

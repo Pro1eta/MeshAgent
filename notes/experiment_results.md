@@ -34,6 +34,42 @@
 | S4 | **+ Error Check** | Verifier 不变量检测 + 自修复 | 2 |
 | S5 | **+ Tools** | Full MeshAgent（CoT+Verifier+工具） | 2 |
 
+### 题目覆盖
+
+所有实验使用相同的 21 道 benchmark 题目。实际记录的条目数因 `EACH_PROMPT_RUN_TIME` 和脚本崩溃而异。
+
+| # | 题目摘要 | 难度 | 类型 | S1 | S2 | S3 | S4 | S5 |
+|:--:|------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| 1 | List ports in ju1.a1.m1.s2c1 | easy | list | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 2 | Add packet_switch s4c7 | easy | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 3 | Update phys_capacity_bps | easy | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 4 | CONTROL_POINT in ju1.a4.m4 | easy | list | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 5 | CONTROL_DOMAIN ≥3 CP | easy | list | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 6 | Update stage 3→5 | easy | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 7 | CHASSIS per RACK | easy | table | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 8 | Bandwidth ju1.a2.m1.s2c2 | medium | text | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 9 | Bandwidth per AGG_BLOCK | medium | table | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 10 | Top 2 Chassis capacity | medium | table | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 11 | Avg PORT capacity | medium | text | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 12 | Switch/Port per AGG_BLOCK | medium | table | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 13 | Avg capacity per switch | medium | table | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 14 | Switches above avg | medium | list | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 15 | Subgraph SUPERBLOCK+AGG | hard | graph | ✅ | ✅ | ✅ | ✅ | 🔴 |
+| 16 | Remove switch balance | hard | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 17 | Remove ports balance | hard | text | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 18 | Paths DOMAIN→PORT | hard | text | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 19 | Redundancy SUPERBLOCK | hard | text | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 20 | Removable switches | hard | list | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 21 | Optimal placement | hard | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **实际记录数** | | | | **21** | **21** | **39** | **40** | **37** |
+| **EACH_PROMPT_RUN_TIME** | | | | 1 | 1 | 1 | 2 | 2 |
+
+> ✅ 已记录 | 🔴 S5 prompt_list 初始版本遗漏，已于 `full_meshagent_benchmark.py` 修复，需重跑 S5
+
+S3 有 39 条记录（21 题 × 1 次运行 = 预期 21 条；多余记录来自 CoT 多步执行的重复日志或自修复重试）。
+S4 有 40 条（21 题 × 2 次运行 = 预期 42 条，2 题在第二次运行中崩溃未记录）。
+S5 有 37 条（20 题 × 2 次运行 = 预期 40 条，3 次运行未完成；Q15 遗漏未跑）。
+
 ---
 
 ## 总体结果对比
