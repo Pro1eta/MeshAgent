@@ -117,6 +117,7 @@ def extract_final_code(first_step_code, second_step_code, third_step_code):
     return last_python_code_block
 
 def error_reduce_verify(constraints_found, requestData, code, ret_graph=None, ret_list=None):
+    verifier_self_debug_count = 0
 
     # Run the invariants checker on the modified graph
     print("================= Start verifying invariant constraints =================")
@@ -126,13 +127,12 @@ def error_reduce_verify(constraints_found, requestData, code, ret_graph=None, re
         print("================= Congrats, verifiers all passed! =================")
     else:
         print("================= Start self-debugging for verifier errors =================")
-        # TODO: do the RAG again based on error message
-        # Self-debug for verifier errors here
         verifier_constraints_rag = rag_constraint_search(generate_embeddings(str(verifier_error)), top_k=2)
         debug_constraints = constraints_found + verifier_constraints_rag
         print("Verifier RAG extract constraints: ", verifier_constraints_rag)
 
-        for i in range(DEBUG_LOOP_TOTAL):  # times of self-debug loop
+        for i in range(DEBUG_LOOP_TOTAL):
+            verifier_self_debug_count += 1
             debugged_code = self_debug_process_loop(requestData,
                                                     debug_constraints,
                                                     code,
@@ -148,34 +148,30 @@ def error_reduce_verify(constraints_found, requestData, code, ret_graph=None, re
                 verifier_results, verifier_error = verifier.evaluate_all()
                 if verifier_results:
                     print("================= Congrats, verifiers all passed after self-debugging! =================")
-                    return verifier_results, debugged_code
-                    # break  # if the code successfully executed, break the loop
+                    return verifier_results, debugged_code, verifier_self_debug_count
                 else:
                     verifier_constraints_rag = rag_constraint_search(generate_embeddings(str(verifier_error)), top_k=2)
                     debug_constraints = constraints_found + verifier_constraints_rag
                     print("Verifier RAG extract constraints: ", verifier_constraints_rag)
                     if i == DEBUG_LOOP_TOTAL - 1:
                         print("Fail the test, the code cannot pass all verifiers.")
-                        # if it still fails due to verifier error, log it differently
                         with jsonlines.open(OUTPUT_JSONL_PATH, mode='a') as writer:
                             writer.write(requestData)
                             writer.write({"Result": "Fail, code cannot pass all verifiers"})
                             writer.write({"LLM code": debugged_code})
                             writer.write({"Error": str(verifier_error)})
-                        # break from the current for loop
+                            writer.write({"Verifier debug count": verifier_self_debug_count})
                         continue
 
             except Exception as e:
                 print(e)
                 print("Fail, verifier debugged code cannot run.")
-                # break from the current for loop
                 continue
 
-    # TODO: return the debugged code
-    return verifier_results, None
+    return verifier_results, None, verifier_self_debug_count
 
 def self_debug_execution_error(code, requestData, constraints_found):
-    # Got the detailed error from exec(code)
+    execution_error_self_debug = 0
     exc_type, ex, tb = sys.exc_info()
     imported_tb_info = traceback.extract_tb(tb)[-1]
     line_number = imported_tb_info[1]
@@ -184,7 +180,8 @@ def self_debug_execution_error(code, requestData, constraints_found):
     print("Fail due to errors:", error_details)
 
     # Add self-debug here
-    for i in range(DEBUG_LOOP_TOTAL):  # 3 times self-debug loop
+    for i in range(DEBUG_LOOP_TOTAL):
+        execution_error_self_debug += 1
         debugged_code = self_debug_process_loop(requestData,
                                                 constraints_found,
                                                 code,
@@ -196,7 +193,7 @@ def self_debug_execution_error(code, requestData, constraints_found):
             _, G = getGraphData()
             exec(debugged_code)
             ret = eval("process_graph(G)")
-            return debugged_code, ret
+            return debugged_code, ret, execution_error_self_debug
         except Exception as e:
             # Got the detailed error from exec(code)
             exc_type, ex, tb = sys.exc_info()
@@ -217,7 +214,7 @@ def self_debug_execution_error(code, requestData, constraints_found):
                 # break from the current for loop
                 continue
 
-    return None, None
+    return None, None, execution_error_self_debug
 
 def diff_model_source_output_format(model_output):
     if MODEL_SOURCE == "OPENAI":
@@ -253,6 +250,8 @@ def userQuery(prompt_list):
         # Reset ret when it's a new test
         ret = None
         ground_truth_ret = None
+        total_execution_debug_count = 0
+        total_verifier_debug_count = 0
 
         # Run each prompt for 10 times
         for i in range(EACH_PROMPT_RUN_TIME):
@@ -282,11 +281,12 @@ def userQuery(prompt_list):
             first_step_code = clean_up_llm_output_func(first_step_code)
             print("Step 1: ", steps[0])
             print("Code generated: ", first_step_code)
+            first_step_execution_debug_count = 0
             try:
                 exec(first_step_code)
                 first_step_ret = eval("process_graph(G)")
             except Exception:
-                self_debugged_code_1, first_step_ret = self_debug_execution_error(first_step_code, requestData, constraints_found)
+                self_debugged_code_1, first_step_ret, first_step_execution_debug_count = self_debug_execution_error(first_step_code, requestData, constraints_found)
                 if self_debugged_code_1:
                     first_step_code = self_debugged_code_1
 
@@ -296,9 +296,9 @@ def userQuery(prompt_list):
             if first_step_ret['type'] == 'graph':
                 first_step_ret_graph = clean_up_output_graph_data(first_step_ret)
                 # Run the error reducer
-                first_step_verify_result, cot_first_step_debugged_code = error_reduce_verify(constraints_found, requestData, first_step_code, ret_graph=first_step_ret_graph, ret_list=None)
+                first_step_verify_result, cot_first_step_debugged_code, first_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, first_step_code, ret_graph=first_step_ret_graph, ret_list=None)
             else:
-                first_step_verify_result, cot_first_step_debugged_code = error_reduce_verify(constraints_found, requestData, first_step_code, ret_graph=None, ret_list=first_step_ret)
+                first_step_verify_result, cot_first_step_debugged_code, first_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, first_step_code, ret_graph=None, ret_list=first_step_ret)
 
             print("first_step_verify_result: ", first_step_verify_result)
             if cot_first_step_debugged_code:
@@ -314,12 +314,13 @@ def userQuery(prompt_list):
             second_step_code = clean_up_llm_output_func(second_step_code)
             print("Step 2: ", steps[1])
             print("Code generated: ", second_step_code)
+            second_step_execution_debug_count = 0
 
             try:
                 exec(second_step_code)
                 second_step_ret = eval("process_graph(G)")
             except Exception:
-                self_debugged_code_2, second_step_ret = self_debug_execution_error(second_step_code, requestData,
+                self_debugged_code_2, second_step_ret, second_step_execution_debug_count = self_debug_execution_error(second_step_code, requestData,
                                                                            constraints_found)
                 if self_debugged_code_2:
                     second_step_code = self_debugged_code_2
@@ -330,10 +331,10 @@ def userQuery(prompt_list):
             if second_step_ret['type'] == 'graph':
                 second_step_ret_graph = clean_up_output_graph_data(second_step_ret)
                 # Run the error reducer
-                second_step_verify_result, cot_second_step_debugged_code = error_reduce_verify(constraints_found, requestData, second_step_code,
+                second_step_verify_result, cot_second_step_debugged_code, second_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, second_step_code,
                                                                ret_graph=second_step_ret_graph, ret_list=None)
             else:
-                second_step_verify_result, cot_second_step_debugged_code = error_reduce_verify(constraints_found, requestData, second_step_code,
+                second_step_verify_result, cot_second_step_debugged_code, second_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, second_step_code,
                                                                ret_graph=None, ret_list=second_step_ret)
 
             print("second_step_verify_result: ", second_step_verify_result)
@@ -352,12 +353,13 @@ def userQuery(prompt_list):
                 third_step_code = clean_up_llm_output_func(third_step_code)
                 print("Step 3: ", steps[2])
                 print("Code generated: ", third_step_code)
+                third_step_execution_debug_count = 0
 
                 try:
                     exec(third_step_code)
                     third_step_ret = eval("process_graph(G)")
                 except Exception:
-                    self_debugged_code_3, third_step_ret = self_debug_execution_error(third_step_code, requestData,
+                    self_debugged_code_3, third_step_ret, third_step_execution_debug_count = self_debug_execution_error(third_step_code, requestData,
                                                                                constraints_found)
                     if self_debugged_code_3:
                         third_step_code = self_debugged_code_3
@@ -368,16 +370,18 @@ def userQuery(prompt_list):
                 if third_step_ret['type'] == 'graph':
                     third_step_ret_graph = clean_up_output_graph_data(third_step_ret)
                     # Run the error reducer
-                    third_step_verify_result, cot_third_step_debugged_code = error_reduce_verify(constraints_found, requestData, third_step_code,
+                    third_step_verify_result, cot_third_step_debugged_code, third_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, third_step_code,
                                                                                                  ret_graph=third_step_ret_graph, ret_list=None)
                 else:
-                    third_step_verify_result, cot_third_step_debugged_code = error_reduce_verify(constraints_found, requestData, third_step_code,
+                    third_step_verify_result, cot_third_step_debugged_code, third_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, third_step_code,
                                                                                                  ret_graph=None, ret_list=second_step_ret)
                 print("third_step_verify_result: ", third_step_verify_result)
                 if cot_third_step_debugged_code:
                     # if the debugged code is not none, replace the original code with the debugged code
                     third_step_code = cot_third_step_debugged_code
 
+            total_execution_debug_count = first_step_execution_debug_count + second_step_execution_debug_count + third_step_execution_debug_count
+            total_verifier_debug_count = first_step_verifier_debug_count + second_step_verifier_debug_count + third_step_verifier_debug_count
             code = third_step_code
             # answer = extract_final_code(first_step_code,
             #                             second_step_code,
@@ -390,7 +394,10 @@ def userQuery(prompt_list):
                 exec(code)
                 ret = eval("process_graph(G)")
             except Exception:
-                debugged_code, ret = self_debug_execution_error(code, requestData, constraints_found)
+                debugged_code, ret, final_exec_debug = self_debug_execution_error(code, requestData, constraints_found)
+                total_execution_debug_count += final_exec_debug
+                if debugged_code:
+                    code = debugged_code
             # TODO: fix misleading print
             # print("================= Error reduce progress + 1: Code can run! =================")
             # if the type of ret is string, turn it into a json object
@@ -421,22 +428,22 @@ def userQuery(prompt_list):
                     ground_truth_ret['data'] = str(ground_truth_ret['data'])
 
                 if ground_truth_ret['data'] == ret['data']:
-                    prompt_accu = ground_truth_check_accu(prompt_accu, requestData, ground_truth_ret, ret, llm_output_token_count)
+                    prompt_accu = ground_truth_check_accu(prompt_accu, requestData, ground_truth_ret, ret, llm_output_token_count, total_execution_debug_count, total_verifier_debug_count)
                 else:
-                    ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count)
+                    ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count, total_execution_debug_count, total_verifier_debug_count)
 
             elif ground_truth_ret['type'] == 'list':
                 # Use Counter to check if two lists contain the same items, including duplicate items.
                 if check_list_equal(ground_truth_ret['data'], ret['data']):
-                    prompt_accu = ground_truth_check_accu(prompt_accu, requestData, ground_truth_ret, ret, llm_output_token_count)
+                    prompt_accu = ground_truth_check_accu(prompt_accu, requestData, ground_truth_ret, ret, llm_output_token_count, total_execution_debug_count, total_verifier_debug_count)
                 else:
-                    ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count)
+                    ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count, total_execution_debug_count, total_verifier_debug_count)
 
             elif ground_truth_ret['type'] == 'table':
                 if ground_truth_ret['data'] == ret['data']:
-                    prompt_accu = ground_truth_check_accu(prompt_accu, requestData, ground_truth_ret, ret, llm_output_token_count)
+                    prompt_accu = ground_truth_check_accu(prompt_accu, requestData, ground_truth_ret, ret, llm_output_token_count, total_execution_debug_count, total_verifier_debug_count)
                 else:
-                    ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count)
+                    ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count, total_execution_debug_count, total_verifier_debug_count)
 
             elif ground_truth_ret['type'] == 'graph':
                 # Undirected graphs will be converted to a directed graph
@@ -447,9 +454,9 @@ def userQuery(prompt_list):
 
                 # Check if two graphs are identical, no weights considered
                 if nx.is_isomorphic(ground_truth_graph, ret_graph, node_match=node_attributes_are_equal):
-                    prompt_accu = ground_truth_check_accu(prompt_accu, requestData, ground_truth_ret, ret, llm_output_token_count)
+                    prompt_accu = ground_truth_check_accu(prompt_accu, requestData, ground_truth_ret, ret, llm_output_token_count, total_execution_debug_count, total_verifier_debug_count)
                 else:
-                    ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count)
+                    ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count, total_execution_debug_count, total_verifier_debug_count)
 
             # sleep for 60 seconds, to avoid the API call limit
             time.sleep(10)
@@ -462,7 +469,7 @@ def userQuery(prompt_list):
     return ret
 
 
-def ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count):
+def ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_token_count, execution_debug_count, verifier_debug_count):
     print("Fail the test, and here is more info: ")
     if ground_truth_ret['type'] == 'graph':
         print("Two graph are not identical.")
@@ -474,6 +481,8 @@ def ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_toke
     with jsonlines.open(OUTPUT_JSONL_PATH, mode='a') as writer:
         writer.write(requestData)
         writer.write({"Result": "Fail"})
+        writer.write({"Execution debug count": execution_debug_count})
+        writer.write({"Verifier debug count": verifier_debug_count})
         writer.write({"Ground truth code": ground_truth_ret['reply']})
         writer.write({"LLM code": ret['reply']})
         if ground_truth_ret['type'] != 'graph':
@@ -481,13 +490,15 @@ def ground_truth_check_debug(requestData, ground_truth_ret, ret, llm_output_toke
             writer.write({"LLM code exec": ret['data']})
     return None
 
-def ground_truth_check_accu(count, requestData, ground_truth_ret, ret, llm_output_token_count):
+def ground_truth_check_accu(count, requestData, ground_truth_ret, ret, llm_output_token_count, execution_debug_count, verifier_debug_count):
     print("Pass the test!")
     count += 1
     # Save requestData, code, ground_truth_ret['data'] into a JsonLine file
     with jsonlines.open(OUTPUT_JSONL_PATH, mode='a') as writer:
         writer.write(requestData)
         writer.write({"Result": "Pass"})
+        writer.write({"Execution debug count": execution_debug_count})
+        writer.write({"Verifier debug count": verifier_debug_count})
         writer.write({"Ground truth code": ground_truth_ret['reply']})
         writer.write({"LLM code": ret['reply']})
         if ground_truth_ret['type'] != 'graph':
