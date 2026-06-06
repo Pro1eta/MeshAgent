@@ -24,8 +24,7 @@
 
 ```
 .
-├── .env                      # API Key 配置（不提交到 git）
-├── .env.template             # API Key 模板
+├── .env                      # API Key 配置（需自行创建，已 gitignore）
 ├── LICENSE                   # MIT License
 ├── requirements.txt          # Python 依赖
 ├── MIGRATION_GUIDE.md        # 迁移指南
@@ -36,11 +35,16 @@
 
 ## 快速开始
 
-### 1. 配置 API Key
+### 1. 创建 `.env` 并配置 API Key
 
-```bash
-cp .env.template .env
-# 编辑 .env，填入你的 DeepSeek 和 DashScope API Key
+> ⚠️ `.env` **不在仓库中**（已 gitignore）。clone 后需在项目根目录手动创建。
+
+在项目根目录新建 `.env` 文件，内容如下（替换为你的真实 key）：
+
+```ini
+DEEPSEEK_API_KEY="sk-你的deepseek-api-key"
+DASHSCOPE_API_KEY="sk-你的dashscope-api-key"
+DASHSCOPE_EMBEDDING_URL="https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
 ```
 
 | 变量 | 说明 | 获取地址 |

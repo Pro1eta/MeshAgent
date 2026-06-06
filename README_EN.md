@@ -24,8 +24,7 @@ This project has been migrated from Azure services to domestic models + local ve
 
 ```
 .
-├── .env                      # API Key config (not committed to git)
-├── .env.template             # API Key template
+├── .env                      # API Key config (create manually, gitignored)
 ├── LICENSE                   # MIT License
 ├── requirements.txt          # Python dependencies
 ├── MIGRATION_GUIDE.md        # Migration guide
@@ -36,11 +35,16 @@ This project has been migrated from Azure services to domestic models + local ve
 
 ## Quick Start
 
-### 1. Configure API Keys
+### 1. Create `.env` and Configure API Keys
 
-```bash
-cp .env.template .env
-# Edit .env with your DeepSeek and DashScope API keys
+> ⚠️ `.env` is **not in the repo** (gitignored). You must create it manually after cloning.
+
+Create a `.env` file in the project root with the following content (replace with your real keys):
+
+```ini
+DEEPSEEK_API_KEY="sk-your-deepseek-api-key"
+DASHSCOPE_API_KEY="sk-your-dashscope-api-key"
+DASHSCOPE_EMBEDDING_URL="https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
 ```
 
 | Variable | Description | Get From |
