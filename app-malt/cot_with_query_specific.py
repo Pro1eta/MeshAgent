@@ -54,7 +54,7 @@ import numpy as np
 # =====================================================================
 
 EACH_PROMPT_RUN_TIME = 1
-OUTPUT_JSONL_PATH = 'logs/debug/baseline_static.jsonl'
+OUTPUT_JSONL_PATH = 'logs/debug/cot_query_specific.jsonl'
 DEBUG_LOOP_TOTAL = 3
 
 

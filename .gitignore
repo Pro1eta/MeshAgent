@@ -67,6 +67,12 @@ app-malt/logs/*
 !app-malt/logs/debug/
 app-malt/logs/debug/*
 !app-malt/logs/debug/.gitkeep
+!app-malt/logs/gpt4/
+app-malt/logs/gpt4/*
+!app-malt/logs/gpt4/.gitkeep
+!app-malt/logs/codey/
+app-malt/logs/codey/*
+!app-malt/logs/codey/.gitkeep
 app-traffic-analysis/logs/*
 !app-traffic-analysis/logs/debug/
 app-traffic-analysis/logs/debug/*

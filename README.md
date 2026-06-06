@@ -97,15 +97,16 @@ python copy_full_cot_with_tools.py
 
 ### 5. 清洗与分析
 
-> ⚠️ Stage 1–4 输出到同一个文件 `logs/debug/baseline_static.jsonl`（追加模式）。建议每跑完一个阶段就分析一次并备份，再跑下一个；或手动修改脚本中的 `OUTPUT_JSONL_PATH` 为不同路径。
-
 ```bash
 cd app-malt
 
 # 每个实验跑完后执行：
-python scripts/analyze_results.py logs/debug/baseline_static.jsonl      # Stage 1-4
-python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl    # Stage 5
-python scripts/analyze_results.py logs/codey/full_cot_tool.jsonl        # Stage 5 (alt)
+python scripts/analyze_results.py logs/debug/baseline_static.jsonl
+python scripts/analyze_results.py logs/debug/query_specific_constraint.jsonl
+python scripts/analyze_results.py logs/debug/cot_query_specific.jsonl
+python scripts/analyze_results.py logs/debug/cot_error_check.jsonl
+python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl
+python scripts/analyze_results.py logs/codey/full_cot_tool.jsonl
 ```
 
 每次运行输出：

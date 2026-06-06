@@ -97,15 +97,16 @@ python copy_full_cot_with_tools.py
 
 ### 5. Clean & Analyze
 
-> ⚠️ Stages 1–4 write to the same file `logs/debug/baseline_static.jsonl` (append mode). Analyze and back up results after each stage before running the next; or change `OUTPUT_JSONL_PATH` in each script to separate paths.
-
 ```bash
 cd app-malt
 
 # Run after each experiment:
-python scripts/analyze_results.py logs/debug/baseline_static.jsonl      # Stages 1-4
-python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl    # Stage 5
-python scripts/analyze_results.py logs/codey/full_cot_tool.jsonl        # Stage 5 (alt)
+python scripts/analyze_results.py logs/debug/baseline_static.jsonl
+python scripts/analyze_results.py logs/debug/query_specific_constraint.jsonl
+python scripts/analyze_results.py logs/debug/cot_query_specific.jsonl
+python scripts/analyze_results.py logs/debug/cot_error_check.jsonl
+python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl
+python scripts/analyze_results.py logs/codey/full_cot_tool.jsonl
 ```
 
 Each run outputs:

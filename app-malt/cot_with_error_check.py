@@ -55,7 +55,7 @@ import numpy as np
 # =====================================================================
 
 EACH_PROMPT_RUN_TIME = 1
-OUTPUT_JSONL_PATH = 'logs/debug/baseline_static.jsonl'
+OUTPUT_JSONL_PATH = 'logs/debug/cot_error_check.jsonl'
 DEBUG_LOOP_TOTAL = 1
 
 def self_debug_process_loop(requestData, constraints_found, code, error_details, debug_status_msg, loop_time_index):
