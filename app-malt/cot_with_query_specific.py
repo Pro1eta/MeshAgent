@@ -235,7 +235,6 @@ def userQuery(prompt_list):
 
             goldenAnswerCode = allAnswer[requestData['query']]
 
-            # Reload fresh graph — LLM code may have modified G in-place
             _, G = getGraphData()
             exec(goldenAnswerCode)
             ground_truth_ret = eval("ground_truth_process_graph(G)")
