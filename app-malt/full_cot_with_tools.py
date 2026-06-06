@@ -337,13 +337,12 @@ def userQuery(prompt_list):
                 second_step_ret = json.loads(second_step_ret)
             if second_step_ret is not None:
                 if second_step_ret['type'] == 'graph':
-                second_step_ret_graph = clean_up_output_graph_data(second_step_ret)
-                # Run the error reducer
-                second_step_verify_result, cot_second_step_debugged_code, second_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, second_step_code,
-                                                               ret_graph=second_step_ret_graph, ret_list=None)
-            else:
-                second_step_verify_result, cot_second_step_debugged_code, second_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, second_step_code,
-                                                               ret_graph=None, ret_list=second_step_ret)
+                    second_step_ret_graph = clean_up_output_graph_data(second_step_ret)
+                    second_step_verify_result, cot_second_step_debugged_code, second_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, second_step_code,
+                                                                   ret_graph=second_step_ret_graph, ret_list=None)
+                else:
+                    second_step_verify_result, cot_second_step_debugged_code, second_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, second_step_code,
+                                                                   ret_graph=None, ret_list=second_step_ret)
 
             print("second_step_verify_result: ", second_step_verify_result)
             if cot_second_step_debugged_code:
@@ -376,13 +375,12 @@ def userQuery(prompt_list):
                     third_step_ret = json.loads(third_step_ret)
                 if third_step_ret is not None:
                     if third_step_ret['type'] == 'graph':
-                    third_step_ret_graph = clean_up_output_graph_data(third_step_ret)
-                    # Run the error reducer
-                    third_step_verify_result, cot_third_step_debugged_code, third_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, third_step_code,
-                                                                                                 ret_graph=third_step_ret_graph, ret_list=None)
-                else:
-                    third_step_verify_result, cot_third_step_debugged_code, third_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, third_step_code,
-                                                                                                 ret_graph=None, ret_list=second_step_ret)
+                        third_step_ret_graph = clean_up_output_graph_data(third_step_ret)
+                        third_step_verify_result, cot_third_step_debugged_code, third_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, third_step_code,
+                                                                                                     ret_graph=third_step_ret_graph, ret_list=None)
+                    else:
+                        third_step_verify_result, cot_third_step_debugged_code, third_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, third_step_code,
+                                                                                                     ret_graph=None, ret_list=second_step_ret)
                 print("third_step_verify_result: ", third_step_verify_result)
                 if cot_third_step_debugged_code:
                     # if the debugged code is not none, replace the original code with the debugged code
