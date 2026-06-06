@@ -64,8 +64,17 @@ output/*
 logs/*
 *.DS_Store
 app-malt/logs/*
+!app-malt/logs/debug/
+app-malt/logs/debug/*
+!app-malt/logs/debug/.gitkeep
 app-traffic-analysis/logs/*
+!app-traffic-analysis/logs/debug/
+app-traffic-analysis/logs/debug/*
+!app-traffic-analysis/logs/debug/.gitkeep
 app-CRG/logs/*
+!app-CRG/logs/debug/
+app-CRG/logs/debug/*
+!app-CRG/logs/debug/.gitkeep
 
 # ChromaDB local vector database (generated output)
 **/chroma_rag/
