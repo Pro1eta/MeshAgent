@@ -96,5 +96,6 @@ MIGRATION_GUIDE.md
 .envrc
 
 # Personal notes and reference papers
-notes/
-docs/
+notes/*
+!notes/troubleshooting.md
+!notes/experiment_results.md
