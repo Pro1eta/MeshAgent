@@ -86,13 +86,10 @@ python cot_with_query_specific.py
 # Stage 4: + Verifier invariant detection + self-repair
 python cot_with_error_check.py
 
-# Stage 5: + Tool calling (Full MeshAgent, open-ended queries)
-python full_cot_with_tools.py
-
-# Stage 6: + Tool calling (Full MeshAgent, benchmark queries)
+# Stage 5: + Tool calling (Full MeshAgent)
 python full_meshagent_benchmark.py
 
-# Stage 7: + Confidence scoring + active abstention (Full MeshAgent + Abstention)
+# Stage 6: + Confidence scoring + active abstention (Full MeshAgent + Abstention)
 # Runs each query 3x for semantic consistency (EACH_PROMPT_RUN_TIME=3)
 python full_meshagent_abstention.py
 ```
@@ -109,7 +106,6 @@ python scripts/analyze_results.py logs/debug/baseline_static.jsonl
 python scripts/analyze_results.py logs/debug/query_specific_constraint.jsonl
 python scripts/analyze_results.py logs/debug/cot_query_specific.jsonl
 python scripts/analyze_results.py logs/debug/cot_error_check.jsonl
-python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl
 python scripts/analyze_results.py logs/debug/full_meshagent_benchmark.jsonl
 python scripts/analyze_results.py logs/debug/full_meshagent_abstention.jsonl
 ```
