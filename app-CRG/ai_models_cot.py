@@ -68,7 +68,7 @@ from langchain.chat_models import ChatOpenAI
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
 llm = ChatOpenAI(
-    model='deepseek-v4-pro',
+    model='deepseek-v4',
     openai_api_base='https://api.deepseek.com/v1',
     openai_api_key=DEEPSEEK_API_KEY,
     temperature=0.0,
