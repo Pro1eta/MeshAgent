@@ -1,0 +1,2 @@
+experiment,total,pass,accuracy,reliability,abst_accuracy,abst_precision,abst_recall,abst_rate,easy_acc,medium_acc,hard_acc,text_acc,list_acc,table_acc,graph_acc,fail_run,fail_mismatch
+baseline_static,21,10,47.6,81.0,66.7,100.0,36.4,19.0,57.1,71.4,14.3,40.0,80.0,60.0,16.7,4,7

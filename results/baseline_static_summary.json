@@ -1,0 +1,79 @@
+{
+  "experiment": "baseline_static",
+  "total_queries": 21,
+  "passed": 10,
+  "failed_run": 4,
+  "failed_mismatch": 7,
+  "failed_verifier": 0,
+  "accuracy": 47.62,
+  "reliability": 80.95,
+  "abstention": {
+    "matrix": {
+      "a": 10,
+      "b": 7,
+      "c": 0,
+      "d": 4
+    },
+    "accuracy": 66.67,
+    "precision": 100.0,
+    "recall": 36.36,
+    "rate": 19.05
+  },
+  "by_difficulty": {
+    "easy": {
+      "total": 7,
+      "pass": 4,
+      "fail_run": 1,
+      "fail_mismatch": 2,
+      "fail_verifier": 0
+    },
+    "medium": {
+      "total": 7,
+      "pass": 5,
+      "fail_run": 0,
+      "fail_mismatch": 2,
+      "fail_verifier": 0
+    },
+    "hard": {
+      "total": 7,
+      "pass": 1,
+      "fail_run": 3,
+      "fail_mismatch": 3,
+      "fail_verifier": 0
+    }
+  },
+  "by_type": {
+    "list": {
+      "total": 5,
+      "pass": 4,
+      "fail_run": 0,
+      "fail_mismatch": 1,
+      "fail_verifier": 0
+    },
+    "graph": {
+      "total": 6,
+      "pass": 1,
+      "fail_run": 2,
+      "fail_mismatch": 3,
+      "fail_verifier": 0
+    },
+    "table": {
+      "total": 5,
+      "pass": 3,
+      "fail_run": 0,
+      "fail_mismatch": 2,
+      "fail_verifier": 0
+    },
+    "text": {
+      "total": 5,
+      "pass": 2,
+      "fail_run": 2,
+      "fail_mismatch": 1,
+      "fail_verifier": 0
+    }
+  },
+  "error_categories": {
+    "missing_import": 3,
+    "collection_error": 1
+  }
+}

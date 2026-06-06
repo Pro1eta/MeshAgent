@@ -491,9 +491,121 @@ def analyze(path):
     }
 
 
+# ── Export cleaned data ─────────────────────────────────────────────────────
+
+def export_results(results, queries, path, output_dir):
+    """Export cleaned data to results/ directory."""
+    os.makedirs(output_dir, exist_ok=True)
+
+    basename = os.path.splitext(os.path.basename(path))[0]
+
+    # 1. Summary JSON — top-level metrics for paper tables
+    summary = {
+        "experiment": basename,
+        "total_queries": results["total"],
+        "passed": results["passed"],
+        "failed_run": results["failed_run"],
+        "failed_mismatch": results["failed_mismatch"],
+        "failed_verifier": results["failed_verifier"],
+        "accuracy": round(results["accuracy"], 2),
+        "reliability": round((results["total"] - results["failed_run"]) / results["total"] * 100, 2),
+        "abstention": {
+            "matrix": {"a": results["abstention"]["a"],
+                       "b": results["abstention"]["b"],
+                       "c": results["abstention"]["c"],
+                       "d": results["abstention"]["d"]},
+            "accuracy": round(results["abstention"]["abstention_accuracy"] * 100, 2),
+            "precision": round(results["abstention"]["abstention_precision"] * 100, 2),
+            "recall": round(results["abstention"]["abstention_recall"] * 100, 2),
+            "rate": round(results["abstention"]["abstention_rate"] * 100, 2),
+        },
+        "by_difficulty": results["by_difficulty"],
+        "by_type": results["by_type"],
+        "error_categories": results["error_categories"],
+    }
+    summary_path = os.path.join(output_dir, f"{basename}_summary.json")
+    with open(summary_path, "w") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False)
+    print(f"  Summary exported → {output_dir}/{os.path.basename(summary_path)}")
+
+    # 2. Per-query JSON — one record per query, flattened
+    query_records = []
+    for q in queries:
+        result_str = get_result(q)
+        error = get_error(q)
+        code = get_llm_code(q)
+
+        is_pass = result_str == "Pass"
+        is_run_error = "code cannot run" in result_str.lower()
+        is_verifier_fail = "verifiers" in result_str.lower() and "fail" in result_str.lower()
+
+        cat, detail = "", ""
+        if error and is_run_error:
+            cat, detail = classify_error_reason(error)
+
+        rec = {
+            "query": q["query"][:120],
+            "difficulty": classify_difficulty(q["query"]),
+            "return_type": classify_return_type(q["query"]),
+            "result": result_str,
+            "passed": is_pass,
+            "is_run_error": is_run_error,
+            "is_verifier_failure": is_verifier_fail,
+            "error_category": cat,
+            "error_detail": detail,
+            "code_lines": code.count("\n") + 1 if code else 0,
+        }
+        query_records.append(rec)
+
+    queries_path = os.path.join(output_dir, f"{basename}_queries.json")
+    with open(queries_path, "w") as f:
+        json.dump(query_records, f, indent=2, ensure_ascii=False)
+        print(f"  Queries exported  → {output_dir}/{os.path.basename(queries_path)}")
+
+    # 3. Cross-experiment comparison CSV line (append mode)
+    csv_path = os.path.join(output_dir, "all_experiments.csv")
+    is_new_file = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
+    with open(csv_path, "a") as f:
+        if is_new_file:
+            f.write("experiment,total,pass,accuracy,reliability,"
+                    "abst_accuracy,abst_precision,abst_recall,abst_rate,"
+                    "easy_acc,medium_acc,hard_acc,"
+                    "text_acc,list_acc,table_acc,graph_acc,"
+                    "fail_run,fail_mismatch\n")
+        easy_acc = results["by_difficulty"]["easy"]["pass"] / max(results["by_difficulty"]["easy"]["total"], 1) * 100
+        med_acc = results["by_difficulty"]["medium"]["pass"] / max(results["by_difficulty"]["medium"]["total"], 1) * 100
+        hard_acc = results["by_difficulty"]["hard"]["pass"] / max(results["by_difficulty"]["hard"]["total"], 1) * 100
+        rel = (results["total"] - results["failed_run"]) / results["total"] * 100
+
+        def type_acc(t):
+            d = results["by_type"].get(t, {"pass": 0, "total": 0})
+            return d["pass"] / max(d["total"], 1) * 100
+
+        f.write(f"{basename},{results['total']},{results['passed']},"
+                f"{results['accuracy']:.1f},{rel:.1f},"
+                f"{results['abstention']['abstention_accuracy']*100:.1f},"
+                f"{results['abstention']['abstention_precision']*100:.1f},"
+                f"{results['abstention']['abstention_recall']*100:.1f},"
+                f"{results['abstention']['abstention_rate']*100:.1f},"
+                f"{easy_acc:.1f},{med_acc:.1f},{hard_acc:.1f},"
+                f"{type_acc('text'):.1f},{type_acc('list'):.1f},"
+                f"{type_acc('table'):.1f},{type_acc('graph'):.1f},"
+                f"{results['failed_run']},{results['failed_mismatch']}\n")
+        print(f"  Comparison CSV    → {output_dir}/{os.path.basename(csv_path)}")
+
+
 if __name__ == "__main__":
     path = sys.argv[1] if len(sys.argv) > 1 else "logs/debug/baseline_static.jsonl"
     if not os.path.exists(path):
         print(f"Error: file not found: {path}")
         sys.exit(1)
-    analyze(path)
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.join(script_dir, "..", "..")
+    output_dir = os.path.join(project_root, "results")
+
+    records = load_jsonl(path)
+    queries = group_queries(records)
+    results = analyze(path)
+    print()
+    export_results(results, queries, path, output_dir)
