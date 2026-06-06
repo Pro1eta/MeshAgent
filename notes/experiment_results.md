@@ -2,227 +2,210 @@
 
 ## 实验设置
 
-### 实验环境
-
 | 配置 | 值 |
 |------|-----|
 | LLM | DeepSeek-v4-flash |
 | Embedding | text-embedding-v4 (1536维, DashScope) |
 | 向量检索 | ChromaDB (本地持久化) |
-| CoT Self-Debug 上限 | 5 次 |
-| 约束检索 | RAG top_k = 13 (static), 9/10/11 (query-specific) |
+| Self-Debug 上限 | 5 次 |
+| RAG top_k | S1=13, S2=9, S3=10, S4=11, S5=13 |
 
 ### 评测方法
 
-21 道 benchmark 题目，分为三个难度：
+21 道 benchmark 题目，按难度和返回类型分类：
 
-| 难度 | 数量 | 典型题目 |
-|------|:---:|------|
-| **Easy** | 7 | 列出端口、更新属性、查找节点 |
-| **Medium** | 7 | 计算带宽、聚合统计、排序 |
-| **Hard** | 7 | 路径分析、冗余评估、拓扑优化 |
+| 维度 | Easy | Medium | Hard |
+|------|:---:|:---:|:---:|
+| list (5题) | Q1, Q4, Q5 | Q14 | Q20 |
+| table (5题) | Q7 | Q9, Q10, Q12, Q13 | — |
+| text (5题) | — | Q8, Q11 | Q17, Q18, Q19 |
+| graph (6题) | Q2, Q3, Q6 | — | Q15, Q16, Q21 |
 
-每道题有标准答案（golden answer），LLM 输出与标准答案比对，匹配即 Pass。
+每道题有标准答案（golden answer），LLM 生码 → 执行 → 比对。
 
-### 实验方法（5 个 Stage）
+### 实验方法
 
-| Stage | 方法 | 组件 | EACH_PROMPT_RUN_TIME |
+| Stage | 名称 | 叠加组件 | 运行次数 |
 |:---:|------|------|:---:|
-| S1 | **Baseline** | 全量约束静态注入 | 1 |
-| S2 | **Query-Specific** | 查询相关约束检索 | 1 |
-| S3 | **+ CoT** | Chain-of-Thought 三步推理 | 1 |
-| S4 | **+ Error Check** | Verifier 不变量检测 + 自修复 | 2 |
-| S5 | **+ Tools** | Full MeshAgent（CoT+Verifier+工具） | 2 |
+| S1 | Baseline | 全量约束静态注入 | 2 |
+| S2 | Query-Specific | 查询相关约束检索 | 2 |
+| S3 | + CoT | Chain-of-Thought 三步推理 | 2~3 |
+| S4 | + Error Check | Verifier 不变量检测 + 自修复 | 3 |
+| S5 | Full MeshAgent | CoT + Verifier + 工具调用 | 3 |
 
-### 题目覆盖
-
-所有实验使用相同的 21 道 benchmark 题目。实际记录的条目数因 `EACH_PROMPT_RUN_TIME` 和脚本崩溃而异。
-
-| # | 题目摘要 | 难度 | 类型 | S1 | S2 | S3 | S4 | S5 |
-|:--:|------|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| 1 | List ports in ju1.a1.m1.s2c1 | easy | list | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 2 | Add packet_switch s4c7 | easy | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 3 | Update phys_capacity_bps | easy | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 4 | CONTROL_POINT in ju1.a4.m4 | easy | list | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 5 | CONTROL_DOMAIN ≥3 CP | easy | list | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 6 | Update stage 3→5 | easy | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 7 | CHASSIS per RACK | easy | table | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 8 | Bandwidth ju1.a2.m1.s2c2 | medium | text | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 9 | Bandwidth per AGG_BLOCK | medium | table | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 10 | Top 2 Chassis capacity | medium | table | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 11 | Avg PORT capacity | medium | text | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 12 | Switch/Port per AGG_BLOCK | medium | table | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 13 | Avg capacity per switch | medium | table | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 14 | Switches above avg | medium | list | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 15 | Subgraph SUPERBLOCK+AGG | hard | graph | ✅ | ✅ | ✅ | ✅ | 🔴 |
-| 16 | Remove switch balance | hard | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 17 | Remove ports balance | hard | text | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 18 | Paths DOMAIN→PORT | hard | text | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 19 | Redundancy SUPERBLOCK | hard | text | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 20 | Removable switches | hard | list | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 21 | Optimal placement | hard | graph | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **实际记录数** | | | | **21** | **21** | **39** | **40** | **37** |
-| **EACH_PROMPT_RUN_TIME** | | | | 1 | 1 | 1 | 2 | 2 |
-
-> ✅ 已记录 | 🔴 S5 prompt_list 初始版本遗漏，已于 `full_meshagent_benchmark.py` 修复，需重跑 S5
-
-S3 有 39 条记录（21 题 × 1 次运行 = 预期 21 条；多余记录来自 CoT 多步执行的重复日志或自修复重试）。
-S4 有 40 条（21 题 × 2 次运行 = 预期 42 条，2 题在第二次运行中崩溃未记录）。
-S5 有 37 条（20 题 × 2 次运行 = 预期 40 条，3 次运行未完成；Q15 遗漏未跑）。
+> S3 的 prompt 中 Q1-Q7 在日志中缺失记录（详见 §题目覆盖），本章节只展示有结果的 14 题（Q8-Q21）。
 
 ---
 
-## 总体结果对比
+## 总体结果
 
-| 指标 | S1 Baseline | S2 Query-Spec | S3 +CoT | S4 +ErrorCheck | S5 +Tools |
+| 指标 | S1 Baseline | S2 Query-Spec | S3 +CoT | S4 +ErrorCheck | S5 Full MeshAgent |
 |------|:---:|:---:|:---:|:---:|:---:|
-| **总体准确率** | 47.6% | 42.9% | 43.6% | 57.5% | **54.1%** |
-| **代码可执行率** | 81.0% | 66.7% | 97.4% | 95.0% | **100.0%** |
-| **运行错误率** | 19.0% | 33.3% | 2.6% | 5.0% | **0.0%** |
-| **结果不匹配率** | 33.3% | 23.8% | 53.8% | 37.5% | 45.9% |
+| **总体准确率** | 40.5% | 40.5% | 45.3% | **57.4%** | 53.4% |
+| **代码可执行率** | 64.3% | 61.9% | 98.1% | 93.4% | **100.0%** |
+| **运行错误率** | 35.7% | 38.1% | 1.9% | 6.6% | **0.0%** |
+| **结果不匹配率** | 23.8% | 21.4% | 52.8% | 36.1% | 46.6% |
 
-**关键发现**：
-- **S2 (Query-Specific) 反而比 S1 (Baseline) 差**：约束少了导致 LLM 缺少上下文，运行错误率从 19% 飙升到 33%
-- **S3 (CoT) 大幅提升代码可执行率**（81% → 97%）：CoT 分步推理显著减少语法/逻辑错误
-- **S4 (+ErrorCheck) 准确率达到最高 57.5%**：Verifier 自修复在 S3 基础上额外消解了部分结果不匹配
-- **S5 (+Tools) 代码完全可执行（100%），但准确率略低于 S4**：工具增强了代码生成能力，但准确率 54.1% 仍低于 S4 的 57.5%
+**趋势**：
+- S1→S2：整体准确率持平（40.5%），查询相关约束未带来显著提升
+- S2→S3：**代码可执行率跃升**（61.9%→98.1%），CoT 分步推理大幅减少语法错误。但逻辑错误（结果不匹配）从 21.4% 升至 52.8%——代码能跑了，但跑不对
+- S3→S4：**准确率最高点 57.4%**，Verifier 在不降低可执行率的前提下矫正了部分逻辑错误
+- S4→S5：代码完全可执行（100%），但准确率略降至 53.4%——工具注入带来额外噪声
 
 ---
 
-## 按难度拆分
+## 按难度分析
 
-| 难度 | S1 Baseline | S2 Query-Spec | S3 +CoT | S4 +ErrorCheck | S5 +Tools |
+| 难度 | S1 | S2 | S3 | S4 | S5 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| **Easy** | 57.1% | 85.7% | — | 85.7% | 85.7% |
-| **Medium** | 71.4% | 42.9% | 71.4% | 71.4% | 50.0% |
-| **Hard** | 14.3% | **0.0%** | 11.1% | **8.3%** | **11.1%** |
+| **Easy** (7题) | 85.7% | 78.6% | — | **85.7%** | **85.7%** |
+| **Medium** (7题) | 35.7% | 42.9% | 75.0% | **76.2%** | 52.4% |
+| **Hard** (7题) | **0.0%** | **0.0%** | 12.0% | **5.3%** | 12.5% |
 
-**关键发现**：
-- **Easy 题在 S2 达到最高 85.7%**：查询相关约束对简单题最有效
-- **Hard 题在所有方法中都极低**（最高仅 14.3%）：复杂拓扑操作超出现有约束表达能力
-- **S2 在 Medium 题上反而变差**：约束太少导致缺少必要上下文
+**Easy**：S1 和 S4/S5 均达到 85.7%。Q2（新增节点+端口+边）是唯一从未通过 easy 题——需要构造完整的多层包含树，DeepSeek 始终失败。
+
+**Medium**：S4 达到峰值 76.2%。Q10（Top 2 Chassis 容量）在所有方法中从未通过——需要精确的层级聚合计算。
+
+**Hard**：极低。S1/S2 为 0%（全量跑不动 + 跑不对），S5 最高 12.5%（Q20 和 Q15 工具辅助下通过 2 题）。
 
 ---
 
-## 按返回类型拆分
+## 按返回类型分析
 
 | 题型 | S1 | S2 | S3 | S4 | S5 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| **list** (5题) | 80.0% | 80.0% | 80.0% | **100.0%** | **100.0%** |
-| **table** (5题) | 60.0% | 40.0% | 66.7% | 60.0% | 70.0% |
-| **text** (5题) | 40.0% | 20.0% | 33.3% | 40.0% | **0.0%** |
-| **graph** (6题) | 16.7% | 33.3% | **0.0%** | 36.4% | 44.4% |
+| **list** (5题) | 80.0% | 70.0% | 85.7% | 92.9% | **100.0%** |
+| **table** (5题) | 40.0% | 40.0% | 68.8% | **66.7%** | **66.7%** |
+| **text** (5题) | 10.0% | 20.0% | 35.0% | **40.0%** | 7.1% |
+| **graph** (6题) | 33.3% | 33.3% | **0.0%** | 35.3% | **40.0%** |
 
-**关键发现**：
-- **list 题型最稳定**：从 S4 开始达到 100%
-- **graph 题型逐渐改善**：从 Baseline 16.7% → Tools 44.4%
-- **text 题型在 S5 完全失败（0%）**：工具调用对纯文本输出场景无效甚至有害
+**list 题型**：从 S1 的 80% 逐步升至 S5 的 100%，最稳定的题型。
+
+**graph 题型**：S3 反直觉地降到 0%（该阶段 graph 题全部 easy 类，但 S3 缺失 Q1-Q7 数据）。S5 达到最高的 40%。
+
+**text 题型**：S1 仅 10%，S4 恢复到 40%，但 S5 骤降至 7.1%——工具注入对纯文本输出场景产生大量噪声（1/14 通过）。
 
 ---
 
-## 逐题详细对比（前三难度 Easy）
+## 逐题对比
 
-| # | 题目摘要 | 类型 | S1 | S2 | S3 | S4 | S5 |
+> 图例：✅ Pass | ❌R Run Error | ❌M Result Mismatch | — 未记录
+
+### Easy (Q1-Q7)
+
+| # | 题目 | 类型 | S1 | S2 | S3 | S4 | S5 |
 |:--:|------|:--:|:--:|:--:|:--:|:--:|:--:|
-| Q1 | List all ports in packet switch ju1.a1.m1.s2c1 | list | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Q2 | Add packet_switch ju1.a1.m1.s4c7 with 5 ports | graph | ❌M | ❌M | ❌M | ❌M | ❌M |
-| Q3 | Update physical_capacity_bps to 4000 Mbps | graph | ❌R | ✅ | ✅ | ✅ | ✅ |
-| Q4 | CONTROL_POINT within AGG_BLOCK ju1.a4.m4 | list | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Q5 | CONTROL_DOMAIN with ≥3 CONTROL_POINT | list | ❌M | ✅ | ✅ | ✅ | ✅ |
-| Q6 | Update PACKET_SWITCH stage 3 → 5 | graph | ✅ | ✅ | — | ✅ | ✅ |
-| Q7 | CHASSIS nodes per RACK | table | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Q1 | List ports in ju1.a1.m1.s2c1 | list | ✅ | ✅ | — | ✅ | ✅ |
+| Q2 | Add packet_switch s4c7 + 5 ports | graph | ❌M | ❌M | — | ❌M | ❌M |
+| Q3 | Update capacity 1000→4000 Mbps | graph | ✅ | ✅ | — | ✅ | ✅ |
+| Q4 | CONTROL_POINT in ju1.a4.m4 | list | ✅ | ✅ | — | ✅ | ✅ |
+| Q5 | CONTROL_DOMAIN ≥3 CP | list | ✅ | ✅ | — | ✅ | ✅ |
+| Q6 | Update stage 3→5 | graph | ✅ | ✅ | — | ✅ | ✅ |
+| Q7 | CHASSIS per RACK count | table | ✅ | ✅ | — | ✅ | ✅ |
 
-> 图例：✅ Pass | ❌R Run Error | ❌M Result Mismatch | — 未包含
+### Medium (Q8-Q14)
 
-**Easy 题分析**：
-- Q2（新增节点+5端口+边）是所有方法都无法攻克的难点：需要正确构建多层级包含关系（JUPITER→SUPERBLOCK→AGG_BLOCK→PACKET_SWITCH→PORT），DeepSeek 容易遗漏边的 `type` 属性或层次结构
-- S2 唯一新增的 Pass 是 Q5（CONTROL_DOMAIN 计数），其余与 S1 相同
-
-## 逐题详细对比（Medium）
-
-| # | 题目摘要 | 类型 | S1 | S2 | S3 | S4 | S5 |
+| # | 题目 | 类型 | S1 | S2 | S3 | S4 | S5 |
 |:--:|------|:--:|:--:|:--:|:--:|:--:|:--:|
-| Q8 | Bandwidth on ju1.a2.m1.s2c2 (Mbps) | text | ✅ | ❌M | ✅ | ✅ | ❌M |
+| Q8 | Bandwidth ju1.a2.m1.s2c2 (Mbps) | text | ❌M | ❌M | ✅ | ✅ | ❌M |
 | Q9 | Bandwidth per AGG_BLOCK | table | ✅ | ❌R | ✅ | ✅ | ✅ |
-| Q10 | Top 2 Chassis by capacity on ju1.a1.m1 | table | ❌M | ❌R | ❌M | ❌M | ❌M |
-| Q11 | Avg physical_capacity_bps for all PORTs | text | ✅ | ✅ | ✅ | ✅ | ❌M |
-| Q12 | Switch/Port count per AGG_BLOCK | table | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Q13 | Avg capacity per PACKET_SWITCH in ju1.a1.m1 | table | ❌M | ❌R | ❌M | ✅ | ✅ |
-| Q14 | PACKET_SWITCH above avg capacity | list | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Q10 | Top 2 Chassis by capacity | table | ❌R | ❌R | ❌M | ❌M | ❌M |
+| Q11 | Avg PORT capacity | text | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Q12 | Switch/Port per AGG_BLOCK | table | ❌R | ✅ | ✅ | ✅ | ✅ |
+| Q13 | Avg capacity per switch in ju1.a1.m1 | table | ❌R | ❌R | ✅ | ✅ | ✅ |
+| Q14 | Switches above avg capacity | list | ✅ | ✅ | ✅ | ✅ | ✅ |
 
-**Medium 题分析**：
-- Q10（找到容量最大的两个 Chassis）在所有方法中从未通过：需要多层聚合计算（端口→交换机→机框），DeepSeek 容易算错数值
-- Q13 从 S4 开始通过：Verifier 检测到表格格式问题后，自修复纠正了错误
-- S2 在 Q8/Q9 反而退步：约束减少导致模型缺乏足够的图结构信息
+### Hard (Q15-Q21)
 
-## 逐题详细对比（Hard）
-
-| # | 题目摘要 | 类型 | S1 | S2 | S3 | S4 | S5 |
+| # | 题目 | 类型 | S1 | S2 | S3 | S4 | S5 |
 |:--:|------|:--:|:--:|:--:|:--:|:--:|:--:|
-| Q15 | Subgraph of SUPERBLOCK + AGG_BLOCK | graph | ❌M | ❌M | ❌M | ❌M | — |
-| Q16 | Remove switch, balance Chassis capacity | graph | ❌R | ❌M | ❌M | ❌M | ❌M |
-| Q17 | Remove ports, balance switch capacity | text | ❌R | ❌R | ❌M | ❌M | ❌M |
-| Q18 | Paths from CONTROL_DOMAIN to PORT | text | ❌M | ❌R | ❌M | ❌M | ❌M |
-| Q19 | Redundancy level per SUPERBLOCK | text | ❌R | ❌R | ❌M | ❌R | ❌M |
-| Q20 | Removable PACKET_SWITCH for connectivity | list | ✅ | ❌R | ❌M | ✅ | ✅ |
-| Q21 | Optimal placement of new PACKET_SWITCH | graph | ❌M | ❌M | ❌M | ❌R | ❌M |
-
-**Hard 题分析**：
-- Q20（识别可移除交换机）是唯一被多次通过的 Hard 题：S1/S4/S5 均通过，说明该题需要在约束引导下推理
-- Q16-Q19 涉及多步推理和优化（容量均衡、路径分析、冗余评估），DeepSeek 在所有方法中均无法给出正确答案
-- S2 导致 Q20 从 Pass 变成 Run Error：约束过滤后丢失了关键信息
+| Q15 | Subgraph SUPERBLOCK+AGG_BLOCK | graph | ❌R | ❌M | ❌M | ❌M | ❌M |
+| Q16 | Remove switch, balance Chassis | graph | ❌M | ❌R | ❌M | ❌M | ❌M |
+| Q17 | Remove 5 ports, balance capacity | text | ❌R | ❌R | ❌M | ❌M | ❌M |
+| Q18 | Paths DOMAIN→PORT, rank by hops | text | ❌R | ❌R | ✅ | ❌M | ❌M |
+| Q19 | Redundancy SUPERBLOCK | text | ❌R | ❌R | ❌R | ❌R | ❌M |
+| Q20 | Removable switches (connectivity) | list | ❌R | ❌R | ✅ | ✅ | ✅ |
+| Q21 | Optimal placement new switch | graph | ❌R | ❌R | ❌M | ❌R | ❌M |
 
 ---
 
-## 失败原因分析
+## 题目覆盖
 
-### 失败模式分布
+所有 21 题在 S1/S2/S4/S5 均被完整覆盖（多次运行）。S3 的 Q1-Q7 因日志缺失未记录。
+
+| 指标 | S1 | S2 | S3 | S4 | S5 |
+|------|:---:|:---:|:---:|:---:|:---:|
+| 出题数 | 21 | 21 | 21 | 21 | 21 |
+| 实际记录数 | 42 | 42 | 53 | 61 | 58 |
+| EACH_PROMPT_RUN_TIME | 2 | 2 | 2~3 | 3 | 3 |
+| Easy 题记录 | ✅ 14 | ✅ 14 | 🔴 0 | ✅ 21 | ✅ 21 |
+| 题目完整率 | 100% | 100% | 67% | 100% | 100% |
+
+---
+
+## 失败原因
+
+### 运行错误 vs 结果不匹配
 
 | 失败模式 | S1 | S2 | S3 | S4 | S5 |
 |------|:---:|:---:|:---:|:---:|:---:|
-| Missing import | 3 | 7 | 1 | 2 | 0 |
-| List/dict error | 1 | 0 | 0 | 0 | 0 |
-| Result mismatch | 7 | 5 | 10 | 8 | 12 |
+| Missing import | 15 | 15 | 1 | 4 | 0 |
+| Other run error | 0 | 1 | 0 | 0 | 0 |
+| Result mismatch | 10 | 9 | 28 | 22 | 27 |
+| **总失败** | **25** | **25** | **29** | **26** | **27** |
 
-**失败模式趋势**：
-- **Missing import 从 S3 开始急剧减少**：CoT + self-debug 能修复 import 缺失
-- **Result mismatch 持续增加**：代码能跑了，但结果不对——说明 DeepSeek 在逻辑精确性上存在短板
+**趋势**：S1/S2 的失败以运行错误为主（60%），S3 开始转向结果不匹配为主（96.6%）。CoT 让代码几乎全能跑起来，但逻辑正确性成为新瓶颈。
 
-### Debug 迭代统计（S4/S5）
+### S4/S5 Debug 统计
 
-| 指标 | S4 +ErrorCheck | S5 +Tools |
+| 指标 | S4 | S5 |
 |------|:---:|:---:|
-| 触发 Debug 的题目数 | 3/40 | 2/37 |
-| 额外 Execution Debug 次数 | 2 | 0 |
-| 额外 Verifier Debug 次数 | 1 | 6 |
+| 触发 Debug 的记录数 | 5/61 | 3/58 |
+| 总 Execution Debug 次数 | 4 | 0 |
+| 总 Verifier Debug 次数 | 1 | 10 |
+| 最大 Verifier Debug 次数 | 1 | 4 |
 
-S5 的 Verifier Debug 次数（6次）远超 S4（1次），说明工具调用会引入更多不变量违例。
+S5 的 Verifier Debug 次数（10）远超 S4（1），工具调用引入了更多不变量违例。1 次最多重试 4 轮才通过 verifier。
 
 ---
 
 ## 讨论
 
-### 1. 约束数量与质量
+### 1. 查询相关约束（S2）未带来收益
 
-S2 (Query-Specific, top_k=9-13) 相比 S1 (All constraints) 在 Easy 题上有提升（57.1%→85.7%），但在 Medium 和 Hard 题上反而退化。这与论文结论一致：**约束太少不如全量约束**。
+S2 相比 S1（全量约束）整体准确率持平（40.5%）。Easy 题略有退化（85.7%→78.6%），Medium 略有提升（35.7%→42.9%）。结论与论文一致：**缩约约束对 DeepSeek 弊大于利**——缺少上下文导致更多运行错误（15→16）。
 
-### 2. CoT 的代价
+### 2. CoT 是拐点
 
-S3 (CoT) 极大提升代码可执行率（81%→97%），但会引入新类型的错误：三步推理中信息可能失真或遗漏，导致结果不匹配率从 33% 上升到 54%。
+S3 的可执行率从 61.9% 跃升至 98.1%，标志着系统从「代码跑不动」切换到「代码能跑但跑不对」。这是 CoT 分步推理的核心价值：每步小粒度问题更易生成正确语法。
 
-### 3. Verifier 的实际价值
+### 3. Verifier 的有限价值
 
-S4 (ErrorCheck) 取得最高总体准确率（57.5%），说明 Verifier 在 CoT 基础上能有效过滤和修复部分错误。但 debug 触发率很低（3/40），说明大多数失败并非不变量违例，而是更深层的逻辑错误。
+S4 在 S3 基础上提升近 12 个百分点（45.3%→57.4%），但 debug 触发率极低（5/61，8.2%）。大多数错误并非不变量违例，而是更深层的逻辑计算错误——Verifier 无法检测「算错了」只检测「格式错了」。
 
-### 4. DeepSeek-v4-flash 与论文 GPT-4 的差距
+### 4. 工具调用（S5）是双刃剑
 
-论文中 GPT-4 在 MALT 上达到 >90% 准确率，DeepSeek-v4-flash 最高仅 57.5%。主要差距：
-- **图操作题（graph type）**：GPT-4 能正确处理节点属性和边的类型，DeepSeek 频繁遗漏
-- **计算题（text type）**：GPT-4 数值计算更准确，DeepSeek 容易在多层聚合时出错
-- **Import 遗漏**：DeepSeek 更频繁遗忘 import（7次 vs 论文中几乎为 0）
+S5 实现了 100% 代码可执行率，list 题型也达到 100%。但 text 题型准确率从 40% 骤降至 7.1%——工具相关约束在 prompt 中占据空间，稀释了对纯文本输出场景的指导。
 
-### 5. 下一步
+### 5. DeepSeek-v4-flash 的瓶颈
 
-- 加入置信度评分与主动拒答（S7）可能改善 Hard 题表现
-- 增大 `EACH_PROMPT_RUN_TIME` 可能提升稳定性
-- 在 prompt 中显式要求 import 可减少运行错误
+| 最强指标 | 值 | 对应 Stage |
+|------|:---:|:---:|
+| 最稳定题型 | list 100% | S5 |
+| 最弱题型 | text 7.1% | S5 |
+| 最弱难度 | hard 12.5% | S5 |
+| 从未通过的题 | Q2, Q10, Q15, Q16, Q17, Q19, Q21 | — |
+
+7/21 题在任何方法下从未通过。它们是：
+- **Q2**：新增完整节点树（需理解命名规则和层级关系）
+- **Q10**：Top 2 by capacity（需精确聚合 + 排序）
+- **Q15-Q17,Q19,Q21**：涉及多步优化、路径分析和图操作的 hard 题
+
+这些题的共同特征：需要**精确的数值计算**或**多层级的图遍历**，DeepSeek-v4-flash 在这两方面明显弱于论文中的 GPT-4。
+
+### 6. 下一步
+
+1. 跑 **S7（+ 置信度拒答）**：在 S5 基础上增加主动拒答，可能减少低质量答案的假阳性
+2. 增大 `EACH_PROMPT_RUN_TIME`：多次运行取多数，可能提升稳定性
+3. 在 prompt 中显式声明 import：减少 S1/S2 的运行错误
+4. 尝试 DeepSeek-v4-pro：对比 flash 版本是否有关键差异
