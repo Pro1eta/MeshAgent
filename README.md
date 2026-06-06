@@ -14,7 +14,7 @@
 
 | 组件 | 旧 | 新 |
 |------|----|----|
-| LLM | Azure OpenAI GPT-4-32k | DeepSeek-v4-pro |
+| LLM | Azure OpenAI GPT-4-32k | DeepSeek-v4-flash |
 | Embedding | text-embedding-ada-002 | text-embedding-v4 (Qwen3-Embedding-8B, 1536维) |
 | 向量检索 | Azure Cognitive Search | ChromaDB (本地) |
 
@@ -133,7 +133,6 @@ python scripts/analyze_results.py logs/debug/full_meshagent_abstention.jsonl
 
 ## 已知问题
 
-- **DeepSeek V4 thinking mode**：已在初始化时通过 `model_kwargs={"thinking": {"type": "disabled"}}` 关闭，否则默认思考模式会影响确定性输出
 - **Prompt 文本精确匹配**：脚本通过精确字符串匹配查找 ground truth，细微差异可能导致验证失败
 - **相对路径依赖**：脚本使用 `data/` 和 `logs/` 相对路径，必须从对应 app 目录运行
 

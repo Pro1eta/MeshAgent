@@ -3,7 +3,7 @@
 ## 概述
 
 将 MeshAgent 项目的三个应用（malt / CRG / traffic-analysis）从 Azure 服务迁移到：
-- **LLM**: Azure OpenAI GPT-4-32k → DeepSeek-v4-pro
+- **LLM**: Azure OpenAI GPT-4-32k → DeepSeek-v4-flash
 - **Embedding**: text-embedding-ada-002 → text-embedding-v4 (Qwen3-Embedding-8B, 1536维)
 - **向量检索**: Azure Cognitive Search → ChromaDB (本地)
 
@@ -328,14 +328,14 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 # =====================================================================
 
 # =====================================================================
-# NEW: DeepSeek-v4-pro via OpenAI-compatible API
+# NEW: DeepSeek-v4-flash via OpenAI-compatible API
 # =====================================================================
 from langchain.chat_models import ChatOpenAI
 
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
 llm = ChatOpenAI(
-    model='deepseek-v4-pro',
+    model='deepseek-v4-flash',
     openai_api_base='https://api.deepseek.com/v1',
     openai_api_key=DEEPSEEK_API_KEY,
     temperature=0.0,

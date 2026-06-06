@@ -14,7 +14,7 @@ This project has been migrated from Azure services to domestic models + local ve
 
 | Component | Old | New |
 |------|----|----|
-| LLM | Azure OpenAI GPT-4-32k | DeepSeek-v4-pro |
+| LLM | Azure OpenAI GPT-4-32k | DeepSeek-v4-flash |
 | Embedding | text-embedding-ada-002 | text-embedding-v4 (Qwen3-Embedding-8B, 1536-dim) |
 | Vector Search | Azure Cognitive Search | ChromaDB (local) |
 
