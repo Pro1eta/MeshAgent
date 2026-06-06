@@ -17,6 +17,21 @@ import sys
 import os
 import re
 from collections import defaultdict
+from io import StringIO
+
+
+class TeeOutput:
+    """Duplicate writes to both original stdout and a StringIO buffer."""
+    def __init__(self, original, buffer):
+        self.original = original
+        self.buffer = buffer
+
+    def write(self, data):
+        self.original.write(data)
+        self.buffer.write(data)
+
+    def flush(self):
+        self.original.flush()
 
 
 # ── JSONL parsing ──────────────────────────────────────────────────────────
@@ -493,13 +508,12 @@ def analyze(path):
 
 # ── Export cleaned data ─────────────────────────────────────────────────────
 
-def export_results(results, queries, path, output_dir):
-    """Export cleaned data to results/ directory."""
+def export_results(results, queries, path, output_dir, base_output_dir):
     os.makedirs(output_dir, exist_ok=True)
 
     basename = os.path.splitext(os.path.basename(path))[0]
 
-    # 1. Summary JSON — top-level metrics for paper tables
+    # 1. Summary JSON
     summary = {
         "experiment": basename,
         "total_queries": results["total"],
@@ -562,8 +576,8 @@ def export_results(results, queries, path, output_dir):
         json.dump(query_records, f, indent=2, ensure_ascii=False)
         print(f"  Queries exported  → {output_dir}/{os.path.basename(queries_path)}")
 
-    # 3. Cross-experiment comparison CSV line (append mode)
-    csv_path = os.path.join(output_dir, "all_experiments.csv")
+    # 3. Cross-experiment comparison CSV (append mode, at results/ level)
+    csv_path = os.path.join(base_output_dir, "all_experiments.csv")
     is_new_file = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
     with open(csv_path, "a") as f:
         if is_new_file:
@@ -591,7 +605,7 @@ def export_results(results, queries, path, output_dir):
                 f"{type_acc('text'):.1f},{type_acc('list'):.1f},"
                 f"{type_acc('table'):.1f},{type_acc('graph'):.1f},"
                 f"{results['failed_run']},{results['failed_mismatch']}\n")
-        print(f"  Comparison CSV    → {output_dir}/{os.path.basename(csv_path)}")
+        print(f"  Comparison CSV    → {base_output_dir}/{os.path.basename(csv_path)}")
 
 
 if __name__ == "__main__":
@@ -600,12 +614,29 @@ if __name__ == "__main__":
         print(f"Error: file not found: {path}")
         sys.exit(1)
 
+    experiment_name = os.path.splitext(os.path.basename(path))[0]
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.join(script_dir, "..", "..")
-    output_dir = os.path.join(project_root, "results")
+    base_output_dir = os.path.join(project_root, "results")
+
+    exp_output_dir = os.path.join(base_output_dir, experiment_name)
 
     records = load_jsonl(path)
     queries = group_queries(records)
+
+    captured = StringIO()
+    old_stdout = sys.stdout
+    sys.stdout = TeeOutput(old_stdout, captured)
+
     results = analyze(path)
-    print()
-    export_results(results, queries, path, output_dir)
+
+    sys.stdout = old_stdout
+
+    export_results(results, queries, path, exp_output_dir, base_output_dir)
+
+    report_path = os.path.join(exp_output_dir, f"{experiment_name}.txt")
+    os.makedirs(exp_output_dir, exist_ok=True)
+    with open(report_path, "w") as f:
+        f.write(captured.getvalue())
+    print(f"  Report saved      → {exp_output_dir}/{experiment_name}.txt")

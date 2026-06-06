@@ -1,0 +1,115 @@
+========================================================================
+  MeshAgent Experiment Analysis: baseline_static.jsonl
+========================================================================
+
+  Total queries:        21
+  Passed:               10  (47.6%)
+  Failed (run error):   4  (19.0%)
+  Failed (mismatch):    7  (33.3%)
+
+--------------------------------------------------------
+  By Difficulty
+                Total   Pass   Pass% RunErr MisMat
+--------------------------------------------------------
+  easy              7      4   57.1%      1      2
+  medium            7      5   71.4%      0      2
+  hard              7      1   14.3%      3      3
+
+--------------------------------------------------------
+  By Return Type
+                Total   Pass   Pass% RunErr MisMat
+--------------------------------------------------------
+  text              5      2   40.0%      2      1
+  list              5      4   80.0%      0      1
+  table             5      3   60.0%      0      2
+  graph             6      1   16.7%      2      3
+
+========================================================================
+  Fig. 9 — Abstention Confusion Matrix
+========================================================================
+
+                    Correct Results    Wrong Results
+    Output              a = 10              b = 7   
+    Abstain             c = 0               d = 4   
+
+  Abstention Accuracy:   66.7%  ← (a+d)/(a+b+c+d)
+  Abstention Precision:  100.0%  ← d/(c+d)
+  Abstention Recall:     36.4%  ← d/(b+d)
+  Abstention Rate:       19.0%  ← (c+d)/(a+b+c+d)
+
+========================================================================
+  Failure Reason Classification
+========================================================================
+  Category                             Count
+  ------------------------------------------
+  Missing import / undefined name          3
+  List/dict operation error                1
+
+========================================================================
+  Failed Queries Detail (11 queries)
+========================================================================
+  [ 1] [easy][graph] result mismatch
+       Add a new packet_switch 'ju1.a1.m1.s4c7' on jupiter 1, aggregation block 1,...
+       Code lines: 67
+
+  [ 2] [easy][graph] code cannot run
+       Update the physical_capacity_bps from 1000 Mbps to 4000 Mbps on node ju1.a1...
+       Category: Missing import / undefined name
+       Detail:   'copy' is not defined (missing import)
+       Code lines: 22
+
+  [ 3] [easy][list] result mismatch
+       Display all CONTROL_DOMAIN that contains at least 3 CONTROL_POINT. Return a...
+       Code lines: 43
+
+  [ 4] [medium][table] result mismatch
+       Find the first and the second largest Chassis by capacity on 'ju1.a1.m1'. O...
+       Code lines: 53
+
+  [ 5] [medium][table] result mismatch
+       Identify all PACKET_SWITCH nodes contains in AGG_BLOCK node ju1.a1.m1 and c...
+       Code lines: 57
+
+  [ 6] [hard][graph] result mismatch
+       Provide a graph that contains all SUPERBLOCK and AGG_BLOCK. Create the new ...
+       Code lines: 25
+
+  [ 7] [hard][graph] code cannot run
+       Remove packet switch 'ju1.a1.m1.s2c4' out from Chassis c4, how to balance t...
+       Category: List/dict operation error
+       Detail:   list.remove(x): x not in list
+       Code lines: 104
+
+  [ 8] [hard][text] code cannot run
+       Remove five PORT nodes (start from p1) from each PACKET_SWITCH node ju1.a1....
+       Category: Missing import / undefined name
+       Detail:   'copy' is not defined (missing import)
+       Code lines: 86
+
+  [ 9] [hard][text] result mismatch
+       Identify all paths from the CONTROL_DOMAIN type node ju1.a1.dom to PORT nod...
+       Code lines: 54
+
+  [10] [hard][text] code cannot run
+       Analyze the redundancy level of each SUPERBLOCK node, by calculating the nu...
+       Category: Missing import / undefined name
+       Detail:   'combinations' is not defined (missing import)
+       Code lines: 81
+
+  [11] [hard][graph] result mismatch
+       Determine the optimal placement of a new PACKET_SWITCH node ju1.a1.m1.s2c9 ...
+       Code lines: 77
+
+========================================================================
+  Paper-Relevant Metrics Summary
+========================================================================
+  Accuracy (overall):              47.6%
+  Accuracy (easy):                 57.1%
+  Accuracy (medium):               71.4%
+  Accuracy (hard):                 14.3%
+  Reliability (code exec rate):    81.0%
+  Abstention Accuracy:             66.7%
+  Abstention Precision:            100.0%
+  Abstention Recall:               36.4%
+  Abstention Rate:                 19.0%
+
