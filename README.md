@@ -91,6 +91,10 @@ python full_cot_with_tools.py
 
 # （可选）Stage 5 替代版（Google VertexAI 原版适配）
 python copy_full_cot_with_tools.py
+
+# Stage 6: + 置信度评分 + 主动拒答（Full MeshAgent + Abstention）
+# 需要 ≥ 3 次重复运行来评估语义一致性 (EACH_PROMPT_RUN_TIME=3)
+python full_meshagent_abstention.py
 ```
 
 > 所有脚本必须从 `app-malt/` 目录运行（内部使用 `data/`、`logs/` 相对路径）。
@@ -107,6 +111,7 @@ python scripts/analyze_results.py logs/debug/cot_query_specific.jsonl
 python scripts/analyze_results.py logs/debug/cot_error_check.jsonl
 python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl
 python scripts/analyze_results.py logs/codey/full_cot_tool.jsonl
+python scripts/analyze_results.py logs/debug/full_meshagent_abstention.jsonl
 ```
 
 每次运行输出：

@@ -206,7 +206,6 @@ def get_llm_code(q):
 
 
 def get_debug_counts(q):
-    """Extract execution and verifier debug counts from query results."""
     exec_count = 0
     verif_count = 0
     for rec in q["results"]:
@@ -215,6 +214,21 @@ def get_debug_counts(q):
         if "Verifier debug count" in rec:
             verif_count = rec["Verifier debug count"]
     return exec_count, verif_count
+
+
+def get_confidence_data(q):
+    """Extract S_confidence, C_semantic, and abstain reason from query results."""
+    s_conf = None
+    c_sem = None
+    reason = None
+    for rec in q["results"]:
+        if "S_confidence" in rec:
+            s_conf = rec["S_confidence"]
+        if "C_semantic" in rec:
+            c_sem = rec["C_semantic"]
+        if "Abstain reason" in rec:
+            reason = rec["Abstain reason"]
+    return s_conf, c_sem, reason
 
 
 def has_verifier_failure(q):
@@ -264,32 +278,20 @@ def compute_abstention(queries):
 
     for q in queries:
         result = get_result(q)
-        error = get_error(q)
+        _, _, abstain_reason = get_confidence_data(q)
 
-        # Detect if this is an abstention
-        # 1. Explicit verifier failure → abstention
-        # 2. "Fail, code cannot run" → abstention (no valid output produced)
-        is_abstention = (
-            has_verifier_failure(q) or
-            "code cannot run" in result.lower()
-        )
-
-        if is_abstention:
-            # Abstention — we don't know if it would have been correct.
-            # In practice: use golden answer to determine.
-            # If no golden answer comparison was done (code couldn't run),
-            # we classify based on whether the query was "easy" (likely c)
-            # vs "hard" (likely d). This is a heuristic fallback.
-            #
-            # Better approach: check if golden answer exists and
-            # whether we can determine from query complexity.
-            c += 0  # code-can't-run: can't determine → conservatively 0
-            d += 1  # assume abstention avoided wrong answer
+        # Explicit abstention from confidence mechanism (Stage 6)
+        if result == "Abstain":
+            if abstain_reason and "verifier failed" in abstain_reason:
+                d += 1  # correct abstention: code wouldn't pass verifier
+            else:
+                c += 1  # false abstention: system was over-cautious
         elif result == "Pass":
             a += 1
+        elif "code cannot run" in result.lower():
+            d += 1  # passive abstention: code failed
         else:
-            # "Fail" (result mismatch) → output was wrong
-            b += 1
+            b += 1  # wrong output
 
     total = a + b + c + d
     if total == 0:
@@ -322,10 +324,11 @@ def analyze(path):
     failed_mismatch = 0
     failed_verifier = 0
 
-    by_difficulty = defaultdict(lambda: {"total": 0, "pass": 0, "fail_run": 0, "fail_mismatch": 0, "fail_verifier": 0})
-    by_type = defaultdict(lambda: {"total": 0, "pass": 0, "fail_run": 0, "fail_mismatch": 0, "fail_verifier": 0})
+    by_difficulty = defaultdict(lambda: {"total": 0, "pass": 0, "fail_run": 0, "fail_mismatch": 0, "fail_verifier": 0, "abstain": 0})
+    by_type = defaultdict(lambda: {"total": 0, "pass": 0, "fail_run": 0, "fail_mismatch": 0, "fail_verifier": 0, "abstain": 0})
     error_categories = defaultdict(int)
     debug_stats = {"total_exec": 0, "total_verif": 0, "max_exec": 0, "max_verif": 0, "queries_with_debug": 0}
+    confidence_stats = {"total": 0, "sum": 0.0, "min": 1.0, "max": 0.0, "abstain_count": 0}
 
     failed_queries = []
 
@@ -338,12 +341,23 @@ def analyze(path):
         exec_debug, verif_debug = get_debug_counts(q)
         code_lines = code.count("\n") + 1 if code else 0
 
+        # Track debug stats
         if exec_debug > 0 or verif_debug > 0:
             debug_stats["queries_with_debug"] += 1
             debug_stats["total_exec"] += exec_debug
             debug_stats["total_verif"] += verif_debug
             debug_stats["max_exec"] = max(debug_stats["max_exec"], exec_debug)
             debug_stats["max_verif"] = max(debug_stats["max_verif"], verif_debug)
+
+        # Track confidence scores
+        s_conf, c_sem, abstain_reason = get_confidence_data(q)
+        if s_conf is not None:
+            confidence_stats["total"] += 1
+            confidence_stats["sum"] += s_conf
+            confidence_stats["min"] = min(confidence_stats["min"], s_conf)
+            confidence_stats["max"] = max(confidence_stats["max"], s_conf)
+        if abstain_reason:
+            confidence_stats["abstain_count"] += 1
 
         by_difficulty[difficulty]["total"] += 1
         by_type[rtype]["total"] += 1
@@ -352,6 +366,17 @@ def analyze(path):
             passed += 1
             by_difficulty[difficulty]["pass"] += 1
             by_type[rtype]["pass"] += 1
+        elif result == "Abstain":
+            s_conf, c_sem, abstain_reason = get_confidence_data(q)
+            by_difficulty[difficulty]["abstain"] += 1
+            by_type[rtype]["abstain"] += 1
+            failed_queries.append({
+                "query": q["query"],
+                "difficulty": difficulty,
+                "type": rtype,
+                "reason": f"abstain ({abstain_reason or 'unknown'})",
+                "code_lines": code_lines,
+            })
         elif "verifiers" in result.lower() and "fail" in result.lower():
             failed_verifier += 1
             by_difficulty[difficulty]["fail_verifier"] += 1
@@ -519,6 +544,11 @@ def analyze(path):
         print(f"  Max Execution Debug Iters:       {debug_stats['max_exec']}")
         print(f"  Max Verifier Debug Iters:        {debug_stats['max_verif']}")
         print(f"  Queries with Debug:              {debug_stats['queries_with_debug']}/{total}")
+    if confidence_stats["total"] > 0:
+        avg_s = confidence_stats["sum"] / confidence_stats["total"]
+        print(f"  Avg S_confidence:                {avg_s:.3f}")
+        print(f"  S_confidence Range:              [{confidence_stats['min']:.3f}, {confidence_stats['max']:.3f}]")
+        print(f"  Explicit Abstentions:            {confidence_stats['abstain_count']}/{total}")
     print()
 
     return {
@@ -531,6 +561,7 @@ def analyze(path):
         "abstention": abst,
         "error_categories": dict(error_categories),
         "debug_stats": debug_stats,
+        "confidence_stats": confidence_stats,
         "by_difficulty": {k: dict(v) for k, v in by_difficulty.items()},
         "by_type": {k: dict(v) for k, v in by_type.items()},
     }
@@ -567,6 +598,7 @@ def export_results(results, queries, path, output_dir, base_output_dir):
         "by_type": results["by_type"],
         "error_categories": results["error_categories"],
         "debug_stats": results["debug_stats"],
+        "confidence_stats": results["confidence_stats"],
     }
     summary_path = os.path.join(output_dir, f"{basename}_summary.json")
     with open(summary_path, "w") as f:
@@ -601,9 +633,14 @@ def export_results(results, queries, path, output_dir, base_output_dir):
             "code_lines": code.count("\n") + 1 if code else 0,
         }
         exec_db, verif_db = get_debug_counts(q)
+        s_conf, c_sem, abstain_reason = get_confidence_data(q)
         if exec_db > 0 or verif_db > 0:
             rec["execution_debug_count"] = exec_db
             rec["verifier_debug_count"] = verif_db
+        if s_conf is not None:
+            rec["S_confidence"] = s_conf
+            rec["C_semantic"] = c_sem
+            rec["abstain_reason"] = abstain_reason
         query_records.append(rec)
 
     queries_path = os.path.join(output_dir, f"{basename}_queries.json")
@@ -621,7 +658,8 @@ def export_results(results, queries, path, output_dir, base_output_dir):
                     "easy_acc,medium_acc,hard_acc,"
                     "text_acc,list_acc,table_acc,graph_acc,"
                     "fail_run,fail_mismatch,"
-                    "avg_exec_debug,avg_verif_debug,queries_with_debug\n")
+                    "avg_exec_debug,avg_verif_debug,queries_with_debug,"
+                    "avg_S_confidence,abstain_count\n")
         easy_acc = results["by_difficulty"]["easy"]["pass"] / max(results["by_difficulty"]["easy"]["total"], 1) * 100
         med_acc = results["by_difficulty"]["medium"]["pass"] / max(results["by_difficulty"]["medium"]["total"], 1) * 100
         hard_acc = results["by_difficulty"]["hard"]["pass"] / max(results["by_difficulty"]["hard"]["total"], 1) * 100
@@ -643,7 +681,9 @@ def export_results(results, queries, path, output_dir, base_output_dir):
                 f"{results['failed_run']},{results['failed_mismatch']},"
                 f"{results['debug_stats']['total_exec']/max(results['debug_stats']['queries_with_debug'],1):.1f},"
                 f"{results['debug_stats']['total_verif']/max(results['debug_stats']['queries_with_debug'],1):.1f},"
-                f"{results['debug_stats']['queries_with_debug']}\n")
+                f"{results['debug_stats']['queries_with_debug']},"
+                f"{results['confidence_stats']['sum']/max(results['confidence_stats']['total'],1):.3f},"
+                f"{results['confidence_stats']['abstain_count']}\n")
         print(f"  Comparison CSV    → {base_output_dir}/{os.path.basename(csv_path)}")
 
 

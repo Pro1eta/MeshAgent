@@ -91,6 +91,10 @@ python full_cot_with_tools.py
 
 # (Optional) Stage 5 alternative (Google VertexAI port)
 python copy_full_cot_with_tools.py
+
+# Stage 6: + Confidence scoring + active abstention (Full MeshAgent + Abstention)
+# Requires >= 3 runs per query for semantic consistency (EACH_PROMPT_RUN_TIME=3)
+python full_meshagent_abstention.py
 ```
 
 > All scripts must be run from the `app-malt/` directory (they use relative paths `data/`, `logs/`).
@@ -107,6 +111,7 @@ python scripts/analyze_results.py logs/debug/cot_query_specific.jsonl
 python scripts/analyze_results.py logs/debug/cot_error_check.jsonl
 python scripts/analyze_results.py logs/gpt4/srikanth_queries_2.jsonl
 python scripts/analyze_results.py logs/codey/full_cot_tool.jsonl
+python scripts/analyze_results.py logs/debug/full_meshagent_abstention.jsonl
 ```
 
 Each run outputs:
