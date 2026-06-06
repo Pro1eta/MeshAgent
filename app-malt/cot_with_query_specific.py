@@ -227,6 +227,8 @@ def userQuery(prompt_list):
                             # break from the current for loop
                             continue
             # if the type of ret is string, turn it into a json object
+            if ret is None:
+                continue
             if isinstance(ret, str):
                 ret = json.loads(ret)
 

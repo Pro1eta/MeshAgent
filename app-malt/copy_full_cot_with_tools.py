@@ -401,6 +401,8 @@ def userQuery(prompt_list):
             # TODO: fix misleading print
             # print("================= Error reduce progress + 1: Code can run! =================")
             # if the type of ret is string, turn it into a json object
+            if ret is None:
+                continue
             if isinstance(ret, str):
                 ret = json.loads(ret)
 

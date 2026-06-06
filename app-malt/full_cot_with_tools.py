@@ -400,9 +400,8 @@ def userQuery(prompt_list):
                 ret = eval("process_graph(G)")
             except Exception:
                 debugged_code, ret, _ = self_debug_execution_error(code, requestData, constraints_found)
-            # TODO: fix misleading print
-            # print("================= Error reduce progress + 1: Code can run! =================")
-            # if the type of ret is string, turn it into a json object
+            if ret is None:
+                continue
             if isinstance(ret, str):
                 ret = json.loads(ret)
 
