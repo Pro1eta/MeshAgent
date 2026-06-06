@@ -1,198 +1,179 @@
-# MeshAgent 实验复现问题记录
+# MeshAgent 复现与调试记录
 
-本文档记录了将 MeshAgent 项目从 Azure 迁移至 DeepSeek + ChromaDB 并复现实验过程中遇到的所有困难、问题和 bug，以及对应的解决方案。
-
----
-
-## 1. 环境与依赖问题
-
-### 1.1 `langchain` 和 `openai` 版本锁定
-
-**问题**：项目依赖 `langchain==0.0.350` 和 `openai==0.28.1`，不能升级。
-
-**原因**：
-- `langchain.chat_models.ChatOpenAI` 在 langchain 0.1.0+ 被移除，迁移至独立包 `langchain-openai`
-- `langchain==0.0.350` 内部调用的是 openai 旧版 SDK（`openai.ChatCompletion.create()`）
-- openai 1.0.0 完全重写了客户端 API
-
-**解决**：锁定版本，使用 `ChatOpenAI(openai_api_base=...)` 指向 DeepSeek API，而非使用 `langchain-deepseek` 包（该包依赖 langchain-core>=1.0）。
-
-### 1.2 `openai.chat.completions` vs `openai.ChatCompletion` 错误
-
-**问题**：部分脚本直接 `import openai` 后使用新版 API 调用方式。
-
-**解决**：迁移时确保所有 LLM 调用通过 `langchain.chat_models.ChatOpenAI` 统一管理，不在脚本中直接调用 openai SDK。
+本文档记录了从原始 MeshAgent 项目（Azure）迁移至 DeepSeek + ChromaDB 过程中，实验复现阶段遇到的所有问题、原因及解决方案。
 
 ---
 
-## 2. 模型与 API 问题
+## 1. 环境与基础设施
 
-### 2.1 Embedding API 认证失败 (401)
+### 1.1 日志目录缺失
 
-**问题**：`python scripts/reindex.py` 时 DashScope 返回 401 Unauthorized。
+**现象**：`FileNotFoundError: logs/debug/baseline_static.jsonl`
 
-**原因**：`.env` 文件中的 API Key 为占位符，未填入真实值。
+**原因**：`logs/debug/` 目录不存在，脚本中的 `open(OUTPUT_JSONL_PATH, 'w')` 无法创建文件。
 
-**解决**：在项目根目录创建 `.env` 文件，填入真实的 `DASHSCOPE_API_KEY` 和 `DEEPSEEK_API_KEY`。同时在 README 中明确说明 `.env` 是 gitignored 的，需要 clone 后手动创建。
+**解决**：创建 `logs/debug/` 目录，并通过 `.gitkeep` + `.gitignore` exception 规则保证 clone 后目录存在。
 
-### 2.2 DeepSeek V4 thinking mode 影响输出
-
-**问题**：DeepSeek V4 Pro 默认开启 thinking mode，会在代码输出中插入思考过程，影响代码解析和输出的确定性。
-
-**解决**：在 `ChatOpenAI` 初始化时添加 `model_kwargs={"thinking": {"type": "disabled"}}`。切换到 `deepseek-v4-flash` 后此配置可能不再需要，但保留为安全措施。
-
-### 2.3 LLM 模型名称不正确
-
-**问题**：用户期望使用 `deepseek-v4-flash`，但代码中写的是 `deepseek-v4-pro` 或错误的 `deepseek-v4`。
-
-**解决**：在所有 `ai_models_cot.py`（4 个文件）中统一使用 `deepseek-v4-flash`，并同步更新 README 和 MIGRATION_GUIDE 中的文档。
+**涉及文件**：所有实验脚本、`.gitignore`
 
 ---
 
-## 3. 日志与输出路径问题
+### 1.2 API Key 未配置
 
-### 3.1 `logs/debug/` 目录不存在导致 FileNotFoundError
+**现象**：`requests.exceptions.HTTPError: 401 Unauthorized`
 
-**问题**：clone 后直接运行实验脚本报 `FileNotFoundError: logs/debug/baseline_static.jsonl`。
+**原因**：`.env` 中的 API Key 为占位符。
 
-**原因**：log 目录未被 git 追踪（已在 `.gitignore` 中），clone 后为空。
+**解决**：在根目录创建 `.env` 文件，填入真实的 DeepSeek 和 DashScope API Key。
 
-**解决**：创建 `logs/debug/`、`logs/gpt4/`、`logs/codey/` 目录，添加 `.gitkeep` 文件。在 `.gitignore` 中添加例外规则保留 `.gitkeep`。
-
-### 3.2 多个脚本共用同一输出文件
-
-**问题**：Stage 1-4 原始脚本都输出到 `logs/debug/baseline_static.jsonl`（追加模式），多次跑会导致结果混在一起。
-
-**解决**：修改各脚本的 `OUTPUT_JSONL_PATH` 为独立路径：
-- Stage 1 → `logs/debug/baseline_static.jsonl`
-- Stage 2 → `logs/debug/query_specific_constraint.jsonl`
-- Stage 3 → `logs/debug/cot_query_specific.jsonl`
-- Stage 4 → `logs/debug/cot_error_check.jsonl`
+**涉及文件**：`.env`（需手动创建）
 
 ---
 
-## 4. Prompt 文本精确匹配问题
+### 1.3 .env.template 混淆
 
-### 4.1 Prompt 与 Golden Answer Key 不匹配导致 SystemExit
+**现象**：用户不清楚 `.env` 和 `.env.template` 的区别。
 
-**问题**：运行到某个题目时报 `Un-support ground truth for the current prompt`，脚本直接退出。
+**原因**：`.env.template` 只是一个模板文件，不会被代码读取。`.env` 才是实际生效的配置。
 
-**原因**：`prompt_golden_ans.json` 的 key 必须与脚本中的 query 字符串精确匹配。多个脚本中存在文字差异：
-
-| 脚本 | 错误文本 | 正确文本 |
-|------|----------|----------|
-| query_specific, cot_with_error_check | `"Add edges too."` | `"Add node type and edges too."` |
-| query_specific | `"bandwidth on ju1.a2..."` | `"bandwidth on packet switch ju1.a2..."` |
-| 4 个脚本 | `"Remove five PORT nodes from each"` | `"Remove five PORT nodes (start from p1) from each"` |
-
-**解决**：逐文件修复 prompt 文本，使其与 `prompt_golden_ans.json` 的 key 精确一致。编写了交叉验证脚本检测所有不匹配。
+**解决**：删除 `.env.template`，在 README 中明确说明 `.env` 需要手动创建，并给出完整内容格式。
 
 ---
 
-## 5. 代码运行时 Bug
+### 1.4 虚拟环境手动激活繁琐
 
-### 5.1 `name 'copy' is not defined` / `name 'combinations' is not defined`
+**现象**：每次进入项目目录需手动 `source .venv/bin/activate`。
 
-**问题**：LLM 生成的代码使用了 `copy.deepcopy()` 或 `itertools.combinations()`，但函数体内未 import。
+**解决**：安装 direnv + 创建 `.envrc` 文件。进目录自动激活，离开自动退出。
 
-**原因**：LLM 在生成的 `process_graph()` 函数中使用了标准库函数，但 `exec()` 独立执行该函数时，未导入的模块名不可用。LLM 倾向于在函数体开头补充 import 语句，但 prompt 中未明确要求。
+---
 
-**影响**：这是导致 Stage 1 多题失败的主要原因之一。共影响 3-4 题。
+## 2. LLM 相关
 
-**缓解**：目前通过 self-debug 机制修复部分此类错误。根本解决方案需要修改 prompt 模板要求 LLM 在函数体内显式 import。
+### 2.1 LLM 生成代码缺少 import
 
-### 5.2 `KeyError: 'type'` — Golden Answer 在污染的图上运行
+**现象**：
+```
+name 'copy' is not defined
+name 'combinations' is not defined
+```
 
-**问题**：CoT 脚本在 golden answer 比对阶段报 `KeyError: 'type'`。
+**原因**：LLM（DeepSeek-v4-flash）生成的 `process_graph()` 函数体内使用了 `copy.deepcopy` 或 `itertools.combinations`，但没有写 `import` 语句。函数体被 `exec()` 独立执行，无法解析未 import 的名字。
 
-**原因**：CoT 每个 step 的 `process_graph(G)` 原地修改了 `G`（添加节点、修改属性）。某些 LLM 生成的节点缺少 `type` 属性。随后 golden answer 代码访问 `graph_data.nodes[node]['type']` 时 KeyError。
+**影响**：baseline 中 4/21 题因此失败（19.0%），主要出现在需要修改图结构的题目。
 
-**解决方案**：在 golden answer 比对前重新调用 `getGraphData()` 加载干净图。修复了全部 6 个 CoT 脚本。
+**解决**：此类错误由 CoT 自修复（self-debug）处理。将错误信息送回 LLM，要求其修复并重新生成代码。若自修复也失败，该次运行算运行错误（Fail, code cannot run）。
 
-### 5.3 `'NoneType' object is not subscriptable` — 自修复失败后 ret 为 None
+**深层原因**：这类问题在 GPT-4 上较少出现（GPT-4 有更强的代码补全能力），DeepSeek-v4-flash 因模型能力差异更容易遗忘 import。
 
-**问题**：当所有 self-debug 尝试均失败后，`ret` 保持 `None`，但后续代码直接访问 `ret['type']` 导致 TypeError。
+---
 
-**原因**：`self_debug_execution_error()` 在所有 debug 循环失败后返回 `(None, None, count)`，但调用侧未判空。
+### 2.2 LLM 生成代码原地修改 G 导致 golden answer 崩溃
+
+**现象**：
+```
+KeyError: 'type'
+```
+出现在 `ground_truth_process_graph(G)` 调用中。
+
+**原因**：CoT 各步生成的 `process_graph(G)` 会原地修改图 `G`（如 `G.add_node()`、`G.add_edge()`）。LLM 新增的节点可能缺少 `type` 属性。后续 golden answer 在已污染的图上执行，访问不存在的 `type` 键导致崩溃。
+
+**复现条件**：仅出现在 CoT 脚本中（`cot_with_query_specific`、`cot_with_error_check`、`copy_full_cot_with_tools`、`full_cot_with_tools`），因为 CoT 多步执行会逐步修改 G。单步 baseline 不触发。
+
+**解决**：在 golden answer 比对前调用 `getGraphData()` 重新加载干净的图。共修复 6 个 CoT 脚本。
+
+**涉及 commit**：`96a6b73`
+
+---
+
+### 2.3 自修复失败后 ret 为 None 导致类型错误
+
+**现象**：
+```
+TypeError: 'NoneType' object is not subscriptable
+```
+出现在 `if ret['type'] == 'graph':` / `if first_step_ret['type'] == 'graph':` 等位置。
+
+**原因**：当 self-debug 所有尝试都失败时，`ret` / `first_step_ret` 保持 `None`。原代码直接访问 `['type']` 而不检查 None。
+
+**复现条件**：遇到 2.1 类错误（缺少 import），且 self-debug 也无法修复时。
 
 **解决**：
-- 最终 ret：添加 `if ret is None: continue`
-- CoT 中间步骤：添加 `if xxx_step_ret is None: continue`（step 1）或 `if xxx_step_ret is not None:` 包裹（steps 2/3）
-- 修复了 4 个脚本（cot_with_query_specific, cot_with_error_check, copy_full_cot_with_tools, full_cot_with_tools）
+1. 最终 `ret`：添加 `if ret is None: continue`，跳过该次 golden answer 比对
+2. 中间步骤 `xxx_step_ret`：包裹 `if xxx is not None:` 保护块
 
-### 5.4 IndentationError — None 守卫导致的缩进错误
+**涉及脚本**：`cot_with_query_specific.py`、`cot_with_error_check.py`、`copy_full_cot_with_tools.py`、`full_cot_with_tools.py`、`full_meshagent_benchmark.py`、`full_meshagent_abstention.py`
 
-**问题**：添加 `if xxx_step_ret is not None:` 守卫时，内层 if/else 块未正确递增缩进。
-
-**原因**：原本的 if/else 在 12 空格缩进层级，添加外层 if 后需要 16 空格缩进，但编辑时未调整。
-
-**解决**：修复 3 个脚本中 steps 2/3 的缩进（cot_with_error_check, copy_full_cot_with_tools, full_cot_with_tools）。
+**涉及 commit**：`e0f3bdb`、`57472c0`
 
 ---
 
-## 6. 实验设计与基础设施
+## 3. 数据相关
 
-### 6.1 缺少实验结果分析工具
+### 3.1 Prompt 文本与 Golden Answer Key 不匹配
 
-**问题**：JSONL 输出需要手动解析，无法直观对比不同实验阶段的结果。
+**现象**：
+```
+SystemExit: Un-support ground truth for the current prompt.
+```
 
-**解决**：编写 `scripts/analyze_results.py`，实现：
-- 终端报告（准确率、按难度/题型拆分、Fig 9 拒答矩阵）
-- 结构化 JSON 导出（summary + per-query）
-- CSV 跨实验对比表
-- 失败原因分类（11 类）
-- 置信度指标（Stage 7）
+**原因**：`prompt_golden_ans.json` 的 key 与脚本中的 query 字符串采用精确匹配。脚本中部分 query 文字与 golden answer 的 key 不完全一致：
 
-### 6.2 实验结果导出结构混乱
+| 不匹配 | 脚本中的文本 | Golden Answer Key |
+|--------|------------|-------------------|
+| 1 | `"Add edges too."` | `"Add node type and edges too."` |
+| 2 | `"bandwidth on ju1.a2..."` | `"bandwidth on packet switch ju1.a2..."` |
+| 3 | `"Remove five PORT nodes from each..."` | `"Remove five PORT nodes (start from p1) from each..."` |
 
-**问题**：原本所有结果平铺在 `results/` 下，难以管理多阶段数据。
+**影响**：导致 `query_specific_constraint_prompt.py` 和 `cot_with_error_check.py` 等脚本在运行到第 2 或第 7 题时中断。
 
-**解决**：改为每实验独立子目录 `results/<experiment_name>/`，包含 `.txt` 报告、`summary.json`、`queries.json`。跨实验 CSV 保持在 `results/all_experiments.csv`。
+**解决**：批量检查所有 6 个脚本的 120 条 prompt 与 golden answer 的 21 个 key，修复 5 处不匹配。
 
-### 6.3 测试题目 prompt 列表不一致
-
-**问题**：各脚本的 `prompt_list` 有细微差异（数量不同、文本不同），无法对齐比较。
-
-**解决**：修复所有 mismatch 后，Stage 1-4, 6, 7 均使用相同的 20 道 benchmark 题。
-
-### 6.4 缺少 CI/CD 风格的自动化验证
-
-**问题**：修改脚本后需要手动运行验证，效率低。
-
-**隐含**：`python3 -m py_compile` 可以快速检测语法错误，但逻辑错误仍需实际运行。建议后续添加 pytest 单元测试。
+**涉及 commit**：`2ee2068`、`86e6e00`
 
 ---
 
-## 7. 新增功能
+### 3.2 Stage 1-4 输出到同一文件
 
-### 7.1 置信度评分与主动拒答（Stage 7）
+**现象**：baseline、query_specific、cot_query_specific、cot_error_check 四个脚本的 `OUTPUT_JSONL_PATH` 都指向同一个文件 `logs/debug/baseline_static.jsonl`（追加模式）。
 
-**实现**：
-- `C_semantic`：同一题 3 次运行输出的 embedding 余弦相似度均值
-- `S_confidence = 0.5 × C_semantic + 0.5 × (1 - I_debug / 5)`
-- 阈值 0.7，低于阈值时主动拒答
-- JSONL 记录 `S_confidence`、`C_semantic`、`Abstain reason`
-
-### 7.2 Debug 迭代次数追踪
-
-**实现**：在 Stage 4+ 脚本的 JSONL 输出中记录 `Execution debug count` 和 `Verifier debug count`。分析脚本自动提取并报告平均/最大 debug 迭代次数。
-
-### 7.3 环境配置优化
-
-**改进**：
-- 移除 `.env.template`（容易造成混淆），在 README 中直接展示 `.env` 格式
-- 添加 `.envrc`（本地 direnv 自动激活虚拟环境，已 gitignore）
-- 添加 `.gitignore` 规则覆盖 `chroma_rag/`、`create_RAG_index/output/`、`.omo/`
+**解决**：将四个脚本的输出路径改为独立文件：
+- `logs/debug/baseline_static.jsonl`
+- `logs/debug/query_specific_constraint.jsonl`
+- `logs/debug/cot_query_specific.jsonl`
+- `logs/debug/cot_error_check.jsonl`
 
 ---
 
-## 总结
+## 4. 缺失功能实现
 
-从原项目到可运行状态，主要经历了以下阶段：
+### 4.1 置信度评分与主动拒答
 
-1. **环境适配**（依赖版本锁定、API 切换）
-2. **路径修复**（日志目录、输出重定向）
-3. **文本匹配**（prompt 与 golden answer 精确对齐）
-4. **运行时健壮性**（None 守卫、图污染修复）
-5. **基础设施**（分析脚本、结果导出、实验管理）
-6. **功能增强**（置信度评分、debug 追踪、README 文档化）
+**论文描述**但代码中未实现：
+- 语义一致性 C_semantic（多次运行输出的 embedding 余弦相似度）
+- 置信度公式 S_confidence = w·C + (1-w)·(1-I/N)
+- 主动拒答（S_confidence < 0.7 → Abstain）
+
+**解决**：新建 `full_meshagent_abstention.py`（Stage 7）完整实现论文的 Eq.(2) 置信度公式和 Fig. 9 拒答矩阵。
+
+---
+
+### 4.2 Debug 迭代次数未记录
+
+**现象**：自修复（self-debug/error-reduce）的执行次数未被记录到 JSONL。
+
+**解决**：在 `cot_with_error_check.py`、`copy_full_cot_with_tools.py` 中添加 debug count 追踪，`error_reduce_verify()` 和 `self_debug_execution_error()` 返回额外计数值，写入 JSONL。
+
+---
+
+### 4.3 实验结果分析工具缺失
+
+**现象**：原项目没有数据清洗/分析脚本。
+
+**解决**：新建 `scripts/analyze_results.py`，支持：
+- 终端报告（准确率、By Difficulty/Type、Fig 9 拒答矩阵）
+- JSON/CSV 导出到 `results/` 目录
+- 失败原因分类（11 类：missing_import、type_error 等）
+- 跨实验对比 CSV
+- Debug 迭代统计
+- 置信度统计

@@ -1,6 +1,10 @@
 # MeshAgent 迁移提示词：Azure → DeepSeek + Qwen3 + ChromaDB
 
-> **用途**：将此提示词提供给 AI Agent，在原始 [Froot-NetSys/MeshAgent](https://github.com/Froot-NetSys/MeshAgent) 项目上执行，即可复现完整的迁移和实验环境。
+> **用途**：在原始 [Froot-NetSys/MeshAgent](https://github.com/Froot-NetSys/MeshAgent) 项目上执行本提示词，即可复现完整的迁移和实验环境。
+>
+> **适用对象**：AI Agent（已具备代码读写能力）。
+>
+> **前置条件**：已 clone 原项目，Python 3.11+ 虚拟环境就绪。
 
 ## 概述
 
@@ -401,3 +405,7 @@ python scripts/analyze_results.py logs/debug/full_meshagent_abstention.jsonl
 | **相对路径依赖** | 所有脚本必须从 `app-malt/` 目录运行 |
 | **Prompt 精确匹配** | 任何文字差异都会导致 SystemExit |
 | **Golden answer 只在 MALT 可用** | CRG 和 traffic-analysis 的 golden answer 未适配 |
+
+## 常见问题
+
+详见 `notes/troubleshooting.md`，记录了迁移和实验过程中遇到的 15 个问题及其解决方案。
