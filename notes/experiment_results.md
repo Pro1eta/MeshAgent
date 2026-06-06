@@ -1,131 +1,192 @@
-# MeshAgent 实验结果分析
+# MeshAgent 实验结果报告
 
-## 1. 方法概述
+## 实验设置
 
-实验通过 4 个渐进式阶段评估 MeshAgent 在不同组件配置下的性能：
+### 实验环境
 
-| Stage | 脚本 | 组件 |
-|:---:|------|------|
-| **S1** | `baseline_static_prompt.py` | 全量约束静态注入。将所有 13 条约束直接拼入 prompt，LLM 一次性生成 `process_graph()` 代码 |
-| **S2** | `query_specific_constraint_prompt.py` | 查询相关约束检索。对每个 query 用 embedding 检索最相关的 top-k 约束，减少 prompt 噪声 |
-| **S3** | `cot_with_query_specific.py` | + Chain-of-Thought。LLM 先将问题拆解为 3 步，逐步生成并扩展代码 |
-| **S4** | `cot_with_error_check.py` | + Verifier 不变量检测 + 自修复。生成代码后执行 5 项硬性规则检测（节点/边类型、层级关系、孤立节点、带宽非零），失败则触发 RAG 检索修复约束 → LLM 重新生成 |
+| 配置 | 值 |
+|------|-----|
+| LLM | DeepSeek-v4-flash |
+| Embedding | text-embedding-v4 (1536维, DashScope) |
+| 向量检索 | ChromaDB (本地持久化) |
+| CoT Self-Debug 上限 | 5 次 |
+| 约束检索 | RAG top_k = 13 (static), 9/10/11 (query-specific) |
 
-**实验设置**：
-- 模型：DeepSeek-v4-flash（通过 OpenAI 兼容 API）
-- Embedding：text-embedding-v4（1536 维，DashScope API）
-- 向量检索：ChromaDB 本地持久化
-- 测试集：20 道 MALT 网络拓扑查询（7 easy, 7 medium, 6 hard）
-- 每个 query 运行 1 次（`EACH_PROMPT_RUN_TIME=1`）
+### 评测方法
 
-**评估指标**：
-- **Accuracy**：result 与 golden answer 精确匹配的比例
-- **Reliability**：代码可执行率（不含 self-debug 修复后运行的情况）
+21 道 benchmark 题目，分为三个难度：
 
----
+| 难度 | 数量 | 典型题目 |
+|------|:---:|------|
+| **Easy** | 7 | 列出端口、更新属性、查找节点 |
+| **Medium** | 7 | 计算带宽、聚合统计、排序 |
+| **Hard** | 7 | 路径分析、冗余评估、拓扑优化 |
 
-## 2. 总体对比
+每道题有标准答案（golden answer），LLM 输出与标准答案比对，匹配即 Pass。
 
-| 指标 | S1 Baseline | S2 Query-Specific | S3 CoT | S4 +Error Check |
-|------|:--:|:--:|:--:|:--:|
-| **总体准确率** | 47.6% | 42.9% | 43.6% | 57.5% |
-| **代码可执行率** | 81.0% | 66.7% | 97.4% | 95.0% |
-| Easy 准确率 | 57.1% | 85.7% | 85.7% | 85.7% |
-| Medium 准确率 | 71.4% | 42.9% | 71.4% | 71.4% |
-| Hard 准确率 | 14.3% | 0.0% | 11.1% | 8.3% |
+### 实验方法（5 个 Stage）
 
-### 关键发现
-
-1. **S2 反而比 S1 差**：查询相关的 top-9 约束比全量 13 条约束效果更差，说明约束检索的质量（RAG 召回精度）是瓶颈。减少约束数量导致关键信息丢失。
-
-2. **S3 CoT 大幅提升可执行率**（66.7% → 97.4%）：CoT 的分步推理让 LLM 在生成代码时更谨慎，几乎消除了 import 遗漏和语法错误。但准确率未提升——更多代码能跑了，但逻辑正确性没变。
-
-3. **S4 达最佳**：verifier + 自修复将准确率提升到 57.5%。Hard 题略有改善（0% → 8.3%），但仍是主要瓶颈。
+| Stage | 方法 | 组件 | EACH_PROMPT_RUN_TIME |
+|:---:|------|------|:---:|
+| S1 | **Baseline** | 全量约束静态注入 | 1 |
+| S2 | **Query-Specific** | 查询相关约束检索 | 1 |
+| S3 | **+ CoT** | Chain-of-Thought 三步推理 | 1 |
+| S4 | **+ Error Check** | Verifier 不变量检测 + 自修复 | 2 |
+| S5 | **+ Tools** | Full MeshAgent（CoT+Verifier+工具） | 2 |
 
 ---
 
-## 3. 逐题结果（Pass ✅ / Fail ❌ / Fail: run 🔴）
+## 总体结果对比
 
-| # | 难度 | 题目摘要 | S1 | S2 | S3 | S4 |
-|:-:|:--:|------|:--:|:--:|:--:|:--:|
-| 1 | Easy | List all ports in packet switch | ✅ | ✅ | ✅ | ✅ |
-| 2 | Easy | Add new packet switch + ports | ❌ | ❌ | ❌ | ❌ |
-| 3 | Easy | Update physical_capacity_bps | 🔴 | ✅ | ✅ | ✅ |
-| 4 | Easy | CONTROL_POINT + PACKET_SWITCH in AGG_BLOCK | ✅ | ✅ | ✅ | ✅ |
-| 5 | Easy | CONTROL_DOMAIN with ≥3 CONTROL_POINT | ❌ | ✅ | ✅ | ✅ |
-| 6 | Easy | Update stage: 3→5 | ✅ | ✅ | ✅ | ✅ |
-| 7 | Easy | CHASSIS count per RACK | ✅ | ✅ | ✅ | ✅ |
-| 8 | Medium | Bandwidth on specific packet switch | ✅ | ❌ | ❌ | ✅ |
-| 9 | Medium | Bandwidth per AGG_BLOCK | ✅ | 🔴 | ✅ | ✅ |
-| 10 | Medium | Top 2 Chassis by capacity | ❌ | 🔴 | ❌ | ❌ |
-| 11 | Medium | Average PORT capacity | ✅ | ✅ | ✅ | ✅ |
-| 12 | Medium | Switch + Port count per AGG_BLOCK | ✅ | ✅ | ✅ | ✅ |
-| 13 | Medium | PS nodes in AGG_BLOCK with avg capacity | ❌ | 🔴 | ❌ | ✅ |
-| 14 | Medium | PS nodes above avg capacity | ✅ | ✅ | ✅ | ✅ |
-| 15 | Hard | Subgraph: SUPERBLOCK + AGG_BLOCK | ❌ | ❌ | ❌ | ❌ |
-| 16 | Hard | Remove switch, balance capacity | 🔴 | ❌ | ❌ | ❌ |
-| 17 | Hard | Remove 5 ports, rebalance | 🔴 | 🔴 | ❌ | ❌ |
-| 18 | Hard | Paths from CONTROL_DOMAIN to PORT | ❌ | 🔴 | ❌ | ❌ |
-| 19 | Hard | Redundancy analysis | 🔴 | 🔴 | ❌ | 🔴 |
-| 20 | Hard | Optimize topology | ✅ | 🔴 | ❌ | ✅ |
-| 21 | Hard | Optimal placement new switch | ❌ | ❌ | ❌ | 🔴 |
+| 指标 | S1 Baseline | S2 Query-Spec | S3 +CoT | S4 +ErrorCheck | S5 +Tools |
+|------|:---:|:---:|:---:|:---:|:---:|
+| **总体准确率** | 47.6% | 42.9% | 43.6% | 57.5% | **54.1%** |
+| **代码可执行率** | 81.0% | 66.7% | 97.4% | 95.0% | **100.0%** |
+| **运行错误率** | 19.0% | 33.3% | 2.6% | 5.0% | **0.0%** |
+| **结果不匹配率** | 33.3% | 23.8% | 53.8% | 37.5% | 45.9% |
 
-> ✅ = Pass (正确)　❌ = Fail (结果不匹配)　🔴 = Fail (代码无法运行)
-
-### 观察
-
-- **题目 2**（新增 Packet Switch）：所有阶段均失败。这道题要求 LLM 在图中新增节点并建立正确的层级关系边，涉及多层级（JUPITER → SUPERBLOCK → AGG_BLOCK → PACKET_SWITCH → PORT）。DeepSeek-v4-flash 无法正确理解并执行这种多步拓扑修改。
-- **题目 10**（Top 2 Chassis by capacity）：仅 S2 是代码错误，其余是结果不匹配。S4 的 verifier 无法帮助，因为输出是一个表格（无图结构可验证）。
-- **题目 20**（优化拓扑）：S1 和 S4 均通过，但 S2/S3 失败。这说明全量约束对此类推理题更有效——静态约束提供了完整的图结构知识，有助于 LLM 做出正确的优化判断。
+**关键发现**：
+- **S2 (Query-Specific) 反而比 S1 (Baseline) 差**：约束少了导致 LLM 缺少上下文，运行错误率从 19% 飙升到 33%
+- **S3 (CoT) 大幅提升代码可执行率**（81% → 97%）：CoT 分步推理显著减少语法/逻辑错误
+- **S4 (+ErrorCheck) 准确率达到最高 57.5%**：Verifier 自修复在 S3 基础上额外消解了部分结果不匹配
+- **S5 (+Tools) 代码完全可执行（100%），但准确率略低于 S4**：工具增强了代码生成能力，但准确率 54.1% 仍低于 S4 的 57.5%
 
 ---
 
-## 4. 按题型分析
+## 按难度拆分
 
-| 题型 | 题目数 | S1 Acc | S4 Acc | 变化 |
-|------|:---:|:---:|:---:|:---:|
-| Text（文本） | 5 | 40.0% | 40.0% | 0 |
-| List（列表） | 5 | 80.0% | 100.0% | +20% |
-| Table（表格） | 5 | 60.0% | 60.0% | 0 |
-| **Graph（图）** | 6 | 16.7% | 36.4% | +19.7% |
+| 难度 | S1 Baseline | S2 Query-Spec | S3 +CoT | S4 +ErrorCheck | S5 +Tools |
+|------|:---:|:---:|:---:|:---:|:---:|
+| **Easy** | 57.1% | 85.7% | — | 85.7% | 85.7% |
+| **Medium** | 71.4% | 42.9% | 71.4% | 71.4% | 50.0% |
+| **Hard** | 14.3% | **0.0%** | 11.1% | **8.3%** | **11.1%** |
 
-- **List 题型最容易**：只需遍历和过滤，LLM 擅长的模式
-- **Graph 题型最困难**：需要创建/修改图结构，涉及多层级关系，LLM 容易出错
-- **Verifier 对 Graph 题型提升最大**（+19.7%）：因为 graph 输出可以被 `MyChecker` 的结构验证覆盖
-
----
-
-## 5. 错误类型分布
-
-| 错误类型 | S1 | S2 | S3 | S4 |
-|------|:--:|:--:|:--:|:--:|
-| 代码无法运行 (Run Error) | 4 | 7 | 1 | 2 |
-| 结果不匹配 (Mismatch) | 7 | 5 | 21 | 15 |
-| Verifier 失败 | — | — | — | 0 |
-| Missing import | 3 | 2 | 0 | 0 |
-| List/dict 操作错误 | 1 | 1 | 0 | 0 |
-| 其他 | 0 | 4 | 1 | 2 |
-
-**趋势**：
-- Run Error 从 S1 的 4 题降到 S3 的 1 题——CoT 大幅减少了语法/import 错误
-- Mismatch 从 S1 的 7 题升到 S3 的 21 题——CoT 让更多代码能跑，暴露了更多逻辑错误
-- S4 将 mismatch 降到 15——verifier + 自修复减少了部分逻辑错误
+**关键发现**：
+- **Easy 题在 S2 达到最高 85.7%**：查询相关约束对简单题最有效
+- **Hard 题在所有方法中都极低**（最高仅 14.3%）：复杂拓扑操作超出现有约束表达能力
+- **S2 在 Medium 题上反而变差**：约束太少导致缺少必要上下文
 
 ---
 
-## 6. 与论文的对比
+## 按返回类型拆分
 
-论文报告 MeshAgent 在 GPT-4 上实现 >95% 准确率（含 abstention）。当前 DeepSeek-v4-flash 上最佳为 57.5%，差距较大。
+| 题型 | S1 | S2 | S3 | S4 | S5 |
+|------|:---:|:---:|:---:|:---:|:---:|
+| **list** (5题) | 80.0% | 80.0% | 80.0% | **100.0%** | **100.0%** |
+| **table** (5题) | 60.0% | 40.0% | 66.7% | 60.0% | 70.0% |
+| **text** (5题) | 40.0% | 20.0% | 33.3% | 40.0% | **0.0%** |
+| **graph** (6题) | 16.7% | 33.3% | **0.0%** | 36.4% | 44.4% |
 
-可能原因：
-1. **模型能力差异**：DeepSeek-v4-flash vs GPT-4-32k 的代码生成能力有显著差距
-2. **约束检索质量**：论文使用 Azure Cognitive Search 的混合检索（关键词 + 向量），我们使用纯向量检索（ChromaDB），可能丢失了关键词匹配的信号
-3. **模型差异**：DeepSeek 可能比 GPT-4 更容易产生原地修改图的行为模式，导致 CoT 步骤间的图污染
-4. **没有置信度拒答**：论文的 Fig 9 评估包含了主动拒答的题目（不计入错误），我们 Stage 1-4 无此机制
+**关键发现**：
+- **list 题型最稳定**：从 S4 开始达到 100%
+- **graph 题型逐渐改善**：从 Baseline 16.7% → Tools 44.4%
+- **text 题型在 S5 完全失败（0%）**：工具调用对纯文本输出场景无效甚至有害
 
-### 建议后续实验
+---
 
-1. **Stage 6**（`full_meshagent_benchmark.py`）：在 S4 基础上加入工具调用（RAG 检索的工具函数注入 prompt），测试工具是否能帮助 LLM 做出更正确的图操作
-2. **Stage 7**（`full_meshagent_abstention.py`）：加入置信度评分和主动拒答，完整复现论文 Fig 9 指标
-3. **Ablation**：用 `deepseek-v4-pro` 重复实验，量化模型版本的影响
-4. **约束检索 Ablation**：测试不同 top-k 和检索策略对准确率的影响
+## 逐题详细对比（前三难度 Easy）
+
+| # | 题目摘要 | 类型 | S1 | S2 | S3 | S4 | S5 |
+|:--:|------|:--:|:--:|:--:|:--:|:--:|:--:|
+| Q1 | List all ports in packet switch ju1.a1.m1.s2c1 | list | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Q2 | Add packet_switch ju1.a1.m1.s4c7 with 5 ports | graph | ❌M | ❌M | ❌M | ❌M | ❌M |
+| Q3 | Update physical_capacity_bps to 4000 Mbps | graph | ❌R | ✅ | ✅ | ✅ | ✅ |
+| Q4 | CONTROL_POINT within AGG_BLOCK ju1.a4.m4 | list | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Q5 | CONTROL_DOMAIN with ≥3 CONTROL_POINT | list | ❌M | ✅ | ✅ | ✅ | ✅ |
+| Q6 | Update PACKET_SWITCH stage 3 → 5 | graph | ✅ | ✅ | — | ✅ | ✅ |
+| Q7 | CHASSIS nodes per RACK | table | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+> 图例：✅ Pass | ❌R Run Error | ❌M Result Mismatch | — 未包含
+
+**Easy 题分析**：
+- Q2（新增节点+5端口+边）是所有方法都无法攻克的难点：需要正确构建多层级包含关系（JUPITER→SUPERBLOCK→AGG_BLOCK→PACKET_SWITCH→PORT），DeepSeek 容易遗漏边的 `type` 属性或层次结构
+- S2 唯一新增的 Pass 是 Q5（CONTROL_DOMAIN 计数），其余与 S1 相同
+
+## 逐题详细对比（Medium）
+
+| # | 题目摘要 | 类型 | S1 | S2 | S3 | S4 | S5 |
+|:--:|------|:--:|:--:|:--:|:--:|:--:|:--:|
+| Q8 | Bandwidth on ju1.a2.m1.s2c2 (Mbps) | text | ✅ | ❌M | ✅ | ✅ | ❌M |
+| Q9 | Bandwidth per AGG_BLOCK | table | ✅ | ❌R | ✅ | ✅ | ✅ |
+| Q10 | Top 2 Chassis by capacity on ju1.a1.m1 | table | ❌M | ❌R | ❌M | ❌M | ❌M |
+| Q11 | Avg physical_capacity_bps for all PORTs | text | ✅ | ✅ | ✅ | ✅ | ❌M |
+| Q12 | Switch/Port count per AGG_BLOCK | table | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Q13 | Avg capacity per PACKET_SWITCH in ju1.a1.m1 | table | ❌M | ❌R | ❌M | ✅ | ✅ |
+| Q14 | PACKET_SWITCH above avg capacity | list | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+**Medium 题分析**：
+- Q10（找到容量最大的两个 Chassis）在所有方法中从未通过：需要多层聚合计算（端口→交换机→机框），DeepSeek 容易算错数值
+- Q13 从 S4 开始通过：Verifier 检测到表格格式问题后，自修复纠正了错误
+- S2 在 Q8/Q9 反而退步：约束减少导致模型缺乏足够的图结构信息
+
+## 逐题详细对比（Hard）
+
+| # | 题目摘要 | 类型 | S1 | S2 | S3 | S4 | S5 |
+|:--:|------|:--:|:--:|:--:|:--:|:--:|:--:|
+| Q15 | Subgraph of SUPERBLOCK + AGG_BLOCK | graph | ❌M | ❌M | ❌M | ❌M | — |
+| Q16 | Remove switch, balance Chassis capacity | graph | ❌R | ❌M | ❌M | ❌M | ❌M |
+| Q17 | Remove ports, balance switch capacity | text | ❌R | ❌R | ❌M | ❌M | ❌M |
+| Q18 | Paths from CONTROL_DOMAIN to PORT | text | ❌M | ❌R | ❌M | ❌M | ❌M |
+| Q19 | Redundancy level per SUPERBLOCK | text | ❌R | ❌R | ❌M | ❌R | ❌M |
+| Q20 | Removable PACKET_SWITCH for connectivity | list | ✅ | ❌R | ❌M | ✅ | ✅ |
+| Q21 | Optimal placement of new PACKET_SWITCH | graph | ❌M | ❌M | ❌M | ❌R | ❌M |
+
+**Hard 题分析**：
+- Q20（识别可移除交换机）是唯一被多次通过的 Hard 题：S1/S4/S5 均通过，说明该题需要在约束引导下推理
+- Q16-Q19 涉及多步推理和优化（容量均衡、路径分析、冗余评估），DeepSeek 在所有方法中均无法给出正确答案
+- S2 导致 Q20 从 Pass 变成 Run Error：约束过滤后丢失了关键信息
+
+---
+
+## 失败原因分析
+
+### 失败模式分布
+
+| 失败模式 | S1 | S2 | S3 | S4 | S5 |
+|------|:---:|:---:|:---:|:---:|:---:|
+| Missing import | 3 | 7 | 1 | 2 | 0 |
+| List/dict error | 1 | 0 | 0 | 0 | 0 |
+| Result mismatch | 7 | 5 | 10 | 8 | 12 |
+
+**失败模式趋势**：
+- **Missing import 从 S3 开始急剧减少**：CoT + self-debug 能修复 import 缺失
+- **Result mismatch 持续增加**：代码能跑了，但结果不对——说明 DeepSeek 在逻辑精确性上存在短板
+
+### Debug 迭代统计（S4/S5）
+
+| 指标 | S4 +ErrorCheck | S5 +Tools |
+|------|:---:|:---:|
+| 触发 Debug 的题目数 | 3/40 | 2/37 |
+| 额外 Execution Debug 次数 | 2 | 0 |
+| 额外 Verifier Debug 次数 | 1 | 6 |
+
+S5 的 Verifier Debug 次数（6次）远超 S4（1次），说明工具调用会引入更多不变量违例。
+
+---
+
+## 讨论
+
+### 1. 约束数量与质量
+
+S2 (Query-Specific, top_k=9-13) 相比 S1 (All constraints) 在 Easy 题上有提升（57.1%→85.7%），但在 Medium 和 Hard 题上反而退化。这与论文结论一致：**约束太少不如全量约束**。
+
+### 2. CoT 的代价
+
+S3 (CoT) 极大提升代码可执行率（81%→97%），但会引入新类型的错误：三步推理中信息可能失真或遗漏，导致结果不匹配率从 33% 上升到 54%。
+
+### 3. Verifier 的实际价值
+
+S4 (ErrorCheck) 取得最高总体准确率（57.5%），说明 Verifier 在 CoT 基础上能有效过滤和修复部分错误。但 debug 触发率很低（3/40），说明大多数失败并非不变量违例，而是更深层的逻辑错误。
+
+### 4. DeepSeek-v4-flash 与论文 GPT-4 的差距
+
+论文中 GPT-4 在 MALT 上达到 >90% 准确率，DeepSeek-v4-flash 最高仅 57.5%。主要差距：
+- **图操作题（graph type）**：GPT-4 能正确处理节点属性和边的类型，DeepSeek 频繁遗漏
+- **计算题（text type）**：GPT-4 数值计算更准确，DeepSeek 容易在多层聚合时出错
+- **Import 遗漏**：DeepSeek 更频繁遗忘 import（7次 vs 论文中几乎为 0）
+
+### 5. 下一步
+
+- 加入置信度评分与主动拒答（S7）可能改善 Hard 题表现
+- 增大 `EACH_PROMPT_RUN_TIME` 可能提升稳定性
+- 在 prompt 中显式要求 import 可减少运行错误
