@@ -365,37 +365,6 @@ def run_single_query(each_prompt, constraints_found, tool_found, allAnswer):
     }
 
 
-# ── Comparison with Golden Answer ──────────────────────────────────────────
-
-def compare_with_golden(ground_truth_ret, ret, goldenAnswerCode):
-    """Compare LLM output with golden answer. Returns (passed, info_dict)."""
-    if ret['type'] == 'graph':
-        ret_graph_copy = clean_up_output_graph_data(ret)
-
-    ground_truth_ret['reply'] = goldenAnswerCode
-    ret['reply'] = ret_payload.get('reply', '')
-
-    if ground_truth_ret['type'] == 'text':
-        if isinstance(ret['data'], int):
-            ret['data'] = str(ret['data'])
-        if isinstance(ground_truth_ret['data'], int):
-            ground_truth_ret['data'] = str(ground_truth_ret['data'])
-        return ground_truth_ret['data'] == ret['data'], None
-
-    elif ground_truth_ret['type'] == 'list':
-        return check_list_equal(ground_truth_ret['data'], ret['data']), None
-
-    elif ground_truth_ret['type'] == 'table':
-        return ground_truth_ret['data'] == ret['data'], None
-
-    elif ground_truth_ret['type'] == 'graph':
-        ground_truth_graph = nx.Graph(ground_truth_ret['data'])
-        ret_graph = nx.Graph(ret_graph_copy)
-        return nx.is_isomorphic(ground_truth_graph, ret_graph, node_match=node_attributes_are_equal), None
-
-    return False, None
-
-
 # ── Main Experiment ────────────────────────────────────────────────────────
 
 def userQuery(prompt_list):

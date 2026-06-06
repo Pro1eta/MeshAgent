@@ -275,6 +275,8 @@ def userQuery(prompt_list):
             # if the type of ret is string, turn it into a json object
             if isinstance(first_step_ret, str):
                 first_step_ret = json.loads(first_step_ret)
+            if first_step_ret is None:
+                continue
             if first_step_ret['type'] == 'graph':
                 first_step_ret_graph = clean_up_output_graph_data(first_step_ret)
                 # Run the error reducer
@@ -310,7 +312,8 @@ def userQuery(prompt_list):
             # if the type of ret is string, turn it into a json object
             if isinstance(second_step_ret, str):
                 second_step_ret = json.loads(second_step_ret)
-            if second_step_ret['type'] == 'graph':
+            if second_step_ret is not None:
+                if second_step_ret['type'] == 'graph':
                 second_step_ret_graph = clean_up_output_graph_data(second_step_ret)
                 # Run the error reducer
                 second_step_verify_result, cot_second_step_debugged_code, second_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, second_step_code,
@@ -349,7 +352,8 @@ def userQuery(prompt_list):
                 # if the type of ret is string, turn it into a json object
                 if isinstance(third_step_ret, str):
                     third_step_ret = json.loads(third_step_ret)
-                if third_step_ret['type'] == 'graph':
+                if third_step_ret is not None:
+                    if third_step_ret['type'] == 'graph':
                     third_step_ret_graph = clean_up_output_graph_data(third_step_ret)
                     # Run the error reducer
                     third_step_verify_result, cot_third_step_debugged_code, third_step_verifier_debug_count = error_reduce_verify(constraints_found, requestData, third_step_code,
