@@ -205,6 +205,18 @@ def get_llm_code(q):
     return ""
 
 
+def get_debug_counts(q):
+    """Extract execution and verifier debug counts from query results."""
+    exec_count = 0
+    verif_count = 0
+    for rec in q["results"]:
+        if "Execution debug count" in rec:
+            exec_count = rec["Execution debug count"]
+        if "Verifier debug count" in rec:
+            verif_count = rec["Verifier debug count"]
+    return exec_count, verif_count
+
+
 def has_verifier_failure(q):
     """Check if this query has verifier-related failure in results."""
     for rec in q["results"]:
@@ -313,6 +325,7 @@ def analyze(path):
     by_difficulty = defaultdict(lambda: {"total": 0, "pass": 0, "fail_run": 0, "fail_mismatch": 0, "fail_verifier": 0})
     by_type = defaultdict(lambda: {"total": 0, "pass": 0, "fail_run": 0, "fail_mismatch": 0, "fail_verifier": 0})
     error_categories = defaultdict(int)
+    debug_stats = {"total_exec": 0, "total_verif": 0, "max_exec": 0, "max_verif": 0, "queries_with_debug": 0}
 
     failed_queries = []
 
@@ -322,7 +335,15 @@ def analyze(path):
         result = get_result(q)
         error = get_error(q)
         code = get_llm_code(q)
+        exec_debug, verif_debug = get_debug_counts(q)
         code_lines = code.count("\n") + 1 if code else 0
+
+        if exec_debug > 0 or verif_debug > 0:
+            debug_stats["queries_with_debug"] += 1
+            debug_stats["total_exec"] += exec_debug
+            debug_stats["total_verif"] += verif_debug
+            debug_stats["max_exec"] = max(debug_stats["max_exec"], exec_debug)
+            debug_stats["max_verif"] = max(debug_stats["max_verif"], verif_debug)
 
         by_difficulty[difficulty]["total"] += 1
         by_type[rtype]["total"] += 1
@@ -490,6 +511,14 @@ def analyze(path):
     print(f"  Abstention Precision:            {abst['abstention_precision']*100:.1f}%")
     print(f"  Abstention Recall:               {abst['abstention_recall']*100:.1f}%")
     print(f"  Abstention Rate:                 {abst['abstention_rate']*100:.1f}%")
+    if debug_stats["queries_with_debug"] > 0:
+        avg_exec = debug_stats["total_exec"] / max(debug_stats["queries_with_debug"], 1)
+        avg_verif = debug_stats["total_verif"] / max(debug_stats["queries_with_debug"], 1)
+        print(f"  Avg Execution Debug Iters:       {avg_exec:.1f}")
+        print(f"  Avg Verifier Debug Iters:        {avg_verif:.1f}")
+        print(f"  Max Execution Debug Iters:       {debug_stats['max_exec']}")
+        print(f"  Max Verifier Debug Iters:        {debug_stats['max_verif']}")
+        print(f"  Queries with Debug:              {debug_stats['queries_with_debug']}/{total}")
     print()
 
     return {
@@ -501,6 +530,7 @@ def analyze(path):
         "accuracy": passed / total * 100,
         "abstention": abst,
         "error_categories": dict(error_categories),
+        "debug_stats": debug_stats,
         "by_difficulty": {k: dict(v) for k, v in by_difficulty.items()},
         "by_type": {k: dict(v) for k, v in by_type.items()},
     }
@@ -536,6 +566,7 @@ def export_results(results, queries, path, output_dir, base_output_dir):
         "by_difficulty": results["by_difficulty"],
         "by_type": results["by_type"],
         "error_categories": results["error_categories"],
+        "debug_stats": results["debug_stats"],
     }
     summary_path = os.path.join(output_dir, f"{basename}_summary.json")
     with open(summary_path, "w") as f:
@@ -569,6 +600,10 @@ def export_results(results, queries, path, output_dir, base_output_dir):
             "error_detail": detail,
             "code_lines": code.count("\n") + 1 if code else 0,
         }
+        exec_db, verif_db = get_debug_counts(q)
+        if exec_db > 0 or verif_db > 0:
+            rec["execution_debug_count"] = exec_db
+            rec["verifier_debug_count"] = verif_db
         query_records.append(rec)
 
     queries_path = os.path.join(output_dir, f"{basename}_queries.json")
@@ -585,7 +620,8 @@ def export_results(results, queries, path, output_dir, base_output_dir):
                     "abst_accuracy,abst_precision,abst_recall,abst_rate,"
                     "easy_acc,medium_acc,hard_acc,"
                     "text_acc,list_acc,table_acc,graph_acc,"
-                    "fail_run,fail_mismatch\n")
+                    "fail_run,fail_mismatch,"
+                    "avg_exec_debug,avg_verif_debug,queries_with_debug\n")
         easy_acc = results["by_difficulty"]["easy"]["pass"] / max(results["by_difficulty"]["easy"]["total"], 1) * 100
         med_acc = results["by_difficulty"]["medium"]["pass"] / max(results["by_difficulty"]["medium"]["total"], 1) * 100
         hard_acc = results["by_difficulty"]["hard"]["pass"] / max(results["by_difficulty"]["hard"]["total"], 1) * 100
@@ -604,7 +640,10 @@ def export_results(results, queries, path, output_dir, base_output_dir):
                 f"{easy_acc:.1f},{med_acc:.1f},{hard_acc:.1f},"
                 f"{type_acc('text'):.1f},{type_acc('list'):.1f},"
                 f"{type_acc('table'):.1f},{type_acc('graph'):.1f},"
-                f"{results['failed_run']},{results['failed_mismatch']}\n")
+                f"{results['failed_run']},{results['failed_mismatch']},"
+                f"{results['debug_stats']['total_exec']/max(results['debug_stats']['queries_with_debug'],1):.1f},"
+                f"{results['debug_stats']['total_verif']/max(results['debug_stats']['queries_with_debug'],1):.1f},"
+                f"{results['debug_stats']['queries_with_debug']}\n")
         print(f"  Comparison CSV    → {base_output_dir}/{os.path.basename(csv_path)}")
 
 
