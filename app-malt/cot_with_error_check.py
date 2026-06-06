@@ -479,7 +479,7 @@ def main():
     prompt_list = [
         # # 3 easy ones
         "List all ports contained in packet switch ju1.a1.m1.s2c1. Return a list.",
-        "Add a new packet_switch 'ju1.a1.m1.s4c7' on jupiter 1, aggregation block 1, domain 1, with 5 ports, each port has physical_capacity_bps as 1000. Add edges too. Return the new graph.",
+        "Add a new packet_switch 'ju1.a1.m1.s4c7' on jupiter 1, aggregation block 1, domain 1, with 5 ports, each port has physical_capacity_bps as 1000. Add node type and edges too. Return the new graph.",
         "Update the physical_capacity_bps from 1000 Mbps to 4000 Mbps on node ju1.a1.m1.s2c2.p14. Convert Mbps to bps before the update. Return the new graph.",
         # 2nd turn
         "Identify all CONTROL_POINT nodes that are also PACKET_SWITCH type within the AGG_BLOCK type node ju1.a4.m4. Return a list.",
